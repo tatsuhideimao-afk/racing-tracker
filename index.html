@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>競艇収支</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0ea5c8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="競艇収支">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── 入力タブ ── -->
+  <div id="tab-input" class="tab-content active">
+    <header class="page-header">
+      <h1>掛け金入力</h1>
+    </header>
+    <main class="page-main">
+      <div class="form-group">
+        <label for="input-date">日付</label>
+        <input type="date" id="input-date">
+      </div>
+      <div class="form-group">
+        <label for="input-venue">場名</label>
+        <select id="input-venue">
+          <option value="">選択してください</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="input-race">レース番号</label>
+        <select id="input-race">
+          <option value="">選択してください</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="input-bet">掛け金（円）</label>
+        <input type="number" id="input-bet" placeholder="例：1000" min="1" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label for="input-memo">メモ（任意）</label>
+        <input type="text" id="input-memo" placeholder="例：1-2-3 ボックス">
+      </div>
+      <button class="btn-primary btn-full" id="btn-register">登録する</button>
+    </main>
+  </div>
+
+  <!-- ── 結果入力タブ ── -->
+  <div id="tab-results" class="tab-content">
+    <header class="page-header">
+      <h1>結果入力</h1>
+    </header>
+    <main class="page-main">
+      <div id="pending-empty" class="empty-state" style="display:none">
+        結果待ちのレースはありません
+      </div>
+      <div id="pending-list"></div>
+    </main>
+  </div>
+
+  <!-- ── 集計タブ ── -->
+  <div id="tab-summary" class="tab-content">
+    <header class="page-header">
+      <h1>集計</h1>
+    </header>
+    <main class="page-main">
+      <div class="filter-bar">
+        <button class="filter-btn active" data-period="all">全期間</button>
+        <button class="filter-btn" data-period="month">今月</button>
+        <button class="filter-btn" data-period="7">直近7日</button>
+        <button class="filter-btn" data-period="30">直近30日</button>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">投入合計</div>
+          <div class="kpi-value" id="kpi-total-bet">¥0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">回収合計</div>
+          <div class="kpi-value" id="kpi-total-payout">¥0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">収支</div>
+          <div class="kpi-value" id="kpi-balance">¥0</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">ROI</div>
+          <div class="kpi-value" id="kpi-roi">—</div>
+        </div>
+        <div class="kpi-card kpi-wide">
+          <div class="kpi-label">的中率（払戻 > 0）</div>
+          <div class="kpi-value" id="kpi-hit-rate">—</div>
+        </div>
+      </div>
+      <div class="chart-section">
+        <div class="chart-title">レース番号別 ROI</div>
+        <div class="chart-wrap" id="wrap-race"><canvas id="chart-race"></canvas></div>
+      </div>
+      <div class="chart-section">
+        <div class="chart-title">曜日別 ROI</div>
+        <div class="chart-wrap" id="wrap-day"><canvas id="chart-day"></canvas></div>
+      </div>
+      <div class="chart-section">
+        <div class="chart-title">場別 ROI</div>
+        <div class="chart-wrap chart-tall" id="wrap-venue"><canvas id="chart-venue"></canvas></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ── 履歴タブ ── -->
+  <div id="tab-history" class="tab-content">
+    <header class="page-header">
+      <h1>履歴</h1>
+      <button class="btn-csv" id="btn-export">CSVエクスポート</button>
+    </header>
+    <main class="page-main">
+      <div id="history-empty" class="empty-state" style="display:none">
+        記録がありません
+      </div>
+      <div id="history-list"></div>
+    </main>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ── ボトムナビ ── -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-tab="input">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+    </svg>
+    <span>入力</span>
+  </button>
+  <button class="nav-btn" data-tab="results">
+    <span class="nav-icon-wrap">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+      </svg>
+      <span class="nav-badge" id="nav-badge" style="display:none">0</span>
+    </span>
+    <span>結果入力</span>
+  </button>
+  <button class="nav-btn" data-tab="summary">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
+    </svg>
+    <span>集計</span>
+  </button>
+  <button class="nav-btn" data-tab="history">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    <span>履歴</span>
+  </button>
+</nav>
+
+<!-- ── 払戻入力モーダル（結果タブ用クイック入力） ── -->
+<div id="payout-overlay" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>払戻金を入力</h2>
+    <div class="payout-info" id="payout-info"></div>
+    <div class="form-group">
+      <label for="payout-input">払戻金（円）　0 = ハズレ</label>
+      <input type="number" id="payout-input" placeholder="例：3600" min="0" inputmode="numeric">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="payout-save">確定</button>
+      <button class="btn-secondary" id="payout-close">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 編集モーダル（履歴タブ用フル編集） ── -->
+<div id="modal-overlay" class="modal-overlay" style="display:none">
+  <div class="modal">
+    <h2>記録を編集</h2>
+    <div class="form-group">
+      <label for="modal-date">日付</label>
+      <input type="date" id="modal-date">
+    </div>
+    <div class="form-group">
+      <label for="modal-venue">場名</label>
+      <select id="modal-venue"></select>
+    </div>
+    <div class="form-group">
+      <label for="modal-race">レース番号</label>
+      <select id="modal-race"></select>
+    </div>
+    <div class="form-group">
+      <label for="modal-bet">掛け金（円）</label>
+      <input type="number" id="modal-bet" min="1" inputmode="numeric">
+    </div>
+    <div class="form-group">
+      <label for="modal-payout">払戻金（円）　空欄 = 結果待ちに戻す</label>
+      <input type="number" id="modal-payout" placeholder="未入力 = 結果待ち" min="0" inputmode="numeric">
+    </div>
+    <div class="form-group">
+      <label for="modal-memo">メモ</label>
+      <input type="text" id="modal-memo">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" id="modal-save">保存</button>
+      <button class="btn-danger" id="modal-delete">削除</button>
+      <button class="btn-secondary" id="modal-close">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── トースト通知 ── -->
+<div id="toast" class="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
