@@ -503,9 +503,6 @@ function handleCSVImport(file) {
       // 日付,経由,投入G,投入P,回収金額,詳細,場名,レース,メモ
       // 0    1   2    3    4      5    6   7     8
       const cols = line.split(',');
-      const venue = cols[6]?.trim() || '';
-      if (!venue) continue;                        // 場名空欄はスキップ
-
       const date = parseImportDate(cols[0]);
       if (!date) continue;
 
@@ -514,14 +511,15 @@ function handleCSVImport(file) {
       const bet   = betG + betP;
       if (bet <= 0) continue;
 
-      const raceNum = parseInt(cols[7]?.trim() || '', 10);
-      if (isNaN(raceNum) || raceNum < 1 || raceNum > 12) continue;
+      const venue   = cols[6]?.trim() || '不明';
+      const raceRaw = parseInt(cols[7]?.trim() || '0', 10);
+      const race    = (!isNaN(raceRaw) && raceRaw >= 1 && raceRaw <= 12) ? raceRaw : 0;
 
       const payRaw = cols[4]?.trim();
       const payout = (!payRaw || payRaw === '') ? null : parseInt(payRaw, 10);
 
       const memo = (cols[8]?.trim() || '');
-      parsed.push({ date, venue, race: raceNum, bet, payout, memo });
+      parsed.push({ date, venue, race, bet, payout, memo });
     }
 
     if (parsed.length === 0) { showToast('インポートできるデータがありません', 'error'); return; }
