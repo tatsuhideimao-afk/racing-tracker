@@ -476,9 +476,6 @@ function exportCSV() {
 }
 
 // ── CSV Import ─────────────────────────────────────────
-function importCSV() {
-  document.getElementById('csv-import-input').click();
-}
 
 function parseImportDate(raw) {
   // "10/6" or "10/06" → YYYY-MM-DD
@@ -611,7 +608,6 @@ function init() {
   });
 
   document.getElementById('btn-export').addEventListener('click', exportCSV);
-  document.getElementById('btn-import').addEventListener('click', importCSV);
   document.getElementById('csv-import-input').addEventListener('change', e => {
     const file = e.target.files[0];
     if (file) { handleCSVImport(file); e.target.value = ''; }
