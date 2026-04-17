@@ -478,15 +478,11 @@ function exportCSV() {
 // ── CSV Import ─────────────────────────────────────────
 
 function parseImportDate(raw) {
-  // "10/6" or "10/06" → YYYY-MM-DD
-  // month 10–12 → 2025, month 1–9 → 2026
-  if (!raw || !raw.includes('/')) return null;
-  const [mStr, dStr] = raw.trim().split('/');
-  const month = parseInt(mStr, 10);
-  const day   = parseInt(dStr, 10);
-  if (isNaN(month) || isNaN(day) || month < 1 || month > 12 || day < 1 || day > 31) return null;
-  const year = month >= 10 ? 2025 : 2026;
-  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  if (!raw) return null;
+  const normalized = raw.trim().replace(/\//g, '-');
+  const date = new Date(normalized);
+  if (isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
 }
 
 function importCSV(text) {
