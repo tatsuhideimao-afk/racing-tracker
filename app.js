@@ -496,20 +496,22 @@ function handleCSVImport(file) {
     if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1); // strip BOM
 
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    console.log(`[CSV Import] 読み込み行数（ヘッダー含む）: ${lines.length}`);
     if (lines.length < 2) { showToast('有効なデータがありません', 'error'); return; }
 
     const parsed = [];
+    const skipped = [];
     for (const line of lines.slice(1)) {
       // 日付,経由,投入G,投入P,回収金額,詳細,場名,レース,メモ
       // 0    1   2    3    4      5    6   7     8
       const cols = line.split(',');
       const date = parseImportDate(cols[0]);
-      if (!date) continue;
+      if (!date) { skipped.push({ line, reason: `日付パース失敗: "${cols[0]?.trim()}"` }); continue; }
 
       const betG  = parseInt(cols[2]?.trim() || '0', 10) || 0;
       const betP  = parseInt(cols[3]?.trim() || '0', 10) || 0;
       const bet   = betG + betP;
-      if (bet <= 0) continue;
+      if (bet <= 0) { skipped.push({ line, reason: `掛け金0以下: G=${cols[2]?.trim()} P=${cols[3]?.trim()}` }); continue; }
 
       const venue   = cols[6]?.trim() || '不明';
       const raceRaw = parseInt(cols[7]?.trim() || '0', 10);
@@ -521,6 +523,14 @@ function handleCSVImport(file) {
       const memo = (cols[8]?.trim() || '');
       parsed.push({ date, venue, race, bet, payout, memo });
     }
+
+    console.log(`[CSV Import] パース結果: 有効=${parsed.length}件 / スキップ=${skipped.length}件`);
+    if (skipped.length > 0) {
+      console.group('[CSV Import] スキップされた行');
+      skipped.forEach(({ line, reason }) => console.log(`理由: ${reason} | 行: ${line}`));
+      console.groupEnd();
+    }
+    console.log('[CSV Import] 先頭3件:', parsed.slice(0, 3));
 
     if (parsed.length === 0) { showToast('インポートできるデータがありません', 'error'); return; }
 
