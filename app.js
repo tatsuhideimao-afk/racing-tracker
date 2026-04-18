@@ -630,26 +630,31 @@ function importCSV(text) {
 
     const parsed = [];
     const skipped = [];
+    let debugCount = 0;
     for (const line of lines.slice(1)) {
-      // 日付,経由,投入G,投入P,回収金額,詳細,場名,レース,メモ
-      // 0    1   2    3    4      5    6   7     8
+      // 日付,場名,レース,掛け金,払戻金,メモ
+      // 0    1   2     3     4      5
       const cols = line.split(',');
+
+      if (debugCount < 5) {
+        console.log(`[CSV Debug] 行${debugCount+1}: cols=`, cols.map((c,i) => `[${i}]${c}`).join(' / '));
+        debugCount++;
+      }
+
       const date = parseDate(cols[0]);
       if (!date) { skipped.push({ line, reason: `日付パース失敗: "${cols[0]?.trim()}"` }); continue; }
 
-      const betG  = parseInt(cols[2]?.trim() || '0', 10) || 0;
-      const betP  = parseInt(cols[3]?.trim() || '0', 10) || 0;
-      const bet   = betG + betP;
-      if (bet <= 0) { skipped.push({ line, reason: `掛け金0以下: G=${cols[2]?.trim()} P=${cols[3]?.trim()}` }); continue; }
-
-      const venue   = cols[6]?.trim() || '不明';
-      const raceRaw = parseInt(cols[7]?.trim() || '0', 10);
+      const venue   = cols[1]?.trim() || '不明';
+      const raceRaw = parseInt(cols[2]?.trim() || '0', 10);
       const race    = (!isNaN(raceRaw) && raceRaw >= 1 && raceRaw <= 12) ? raceRaw : 0;
+
+      const bet = parseInt(cols[3]?.trim() || '0', 10) || 0;
+      if (bet <= 0) { skipped.push({ line, reason: `掛け金0以下: "${cols[3]?.trim()}"` }); continue; }
 
       const payRaw = cols[4]?.trim();
       const payout = (!payRaw || payRaw === '') ? null : parseInt(payRaw, 10);
 
-      const memo = (cols[8]?.trim() || '');
+      const memo = (cols[5]?.trim() || '');
       parsed.push({ date, venue, race, bet, payout, memo });
     }
 
