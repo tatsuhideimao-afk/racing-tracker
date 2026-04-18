@@ -70,10 +70,17 @@
     </header>
     <main class="page-main">
       <div class="filter-bar">
-        <button class="filter-btn active" data-period="all">全期間</button>
-        <button class="filter-btn" data-period="month">今月</button>
-        <button class="filter-btn" data-period="7">直近7日</button>
-        <button class="filter-btn" data-period="30">直近30日</button>
+        <button class="filter-btn active" data-period="month">今月</button>
+        <button class="filter-btn" data-period="today">当日</button>
+        <button class="filter-btn" data-period="select-month">指定月</button>
+        <button class="filter-btn" data-period="year">年度別</button>
+        <button class="filter-btn" data-period="all">全期間</button>
+      </div>
+      <div id="select-month-picker" class="period-picker" style="display:none">
+        <select id="month-select"></select>
+      </div>
+      <div id="year-picker" class="period-picker" style="display:none">
+        <select id="year-select"></select>
       </div>
       <div class="kpi-grid">
         <div class="kpi-card">
@@ -97,15 +104,19 @@
           <div class="kpi-value" id="kpi-hit-rate">—</div>
         </div>
       </div>
-      <div class="chart-section">
+      <div class="chart-section" id="section-monthly" style="display:none">
+        <div class="chart-title">月別 ROI</div>
+        <div class="chart-wrap chart-monthly" id="wrap-monthly"><canvas id="chart-monthly"></canvas></div>
+      </div>
+      <div class="chart-section" id="section-race">
         <div class="chart-title">レース番号別 ROI</div>
         <div class="chart-wrap" id="wrap-race"><canvas id="chart-race"></canvas></div>
       </div>
-      <div class="chart-section">
+      <div class="chart-section" id="section-day">
         <div class="chart-title">曜日別 ROI</div>
         <div class="chart-wrap" id="wrap-day"><canvas id="chart-day"></canvas></div>
       </div>
-      <div class="chart-section">
+      <div class="chart-section" id="section-venue">
         <div class="chart-title">場別 ROI</div>
         <div class="chart-wrap chart-tall" id="wrap-venue"><canvas id="chart-venue"></canvas></div>
       </div>

@@ -12,7 +12,9 @@ const STORAGE_KEY = 'boatRecords';
 
 // ── State ──────────────────────────────────────────────
 let records       = [];
-let currentPeriod = 'all';
+let currentPeriod = 'month';
+let selectedMonth = null;
+let selectedYear  = null;
 let currentEditId   = null;
 let currentPayoutId = null;
 let charts = {};
@@ -73,17 +75,20 @@ function getPending()   { return records.filter(r => r.payout === null); }
 function getCompleted() { return records.filter(r => r.payout !== null); }
 
 function filterByPeriod(recs) {
-  const now = new Date(); now.setHours(23,59,59,999);
+  const today = todayStr();
   if (currentPeriod === 'all') return recs;
+  if (currentPeriod === 'today') return recs.filter(r => r.date === today);
   if (currentPeriod === 'month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return recs.filter(r => new Date(r.date+'T00:00:00') >= start);
+    const ym = today.slice(0, 7);
+    return recs.filter(r => r.date.startsWith(ym));
   }
-  const days = parseInt(currentPeriod, 10);
-  const start = new Date(now);
-  start.setDate(start.getDate() - days + 1);
-  start.setHours(0,0,0,0);
-  return recs.filter(r => new Date(r.date+'T00:00:00') >= start);
+  if (currentPeriod === 'select-month' && selectedMonth) {
+    return recs.filter(r => r.date.startsWith(selectedMonth));
+  }
+  if (currentPeriod === 'year' && selectedYear) {
+    return recs.filter(r => r.date.startsWith(selectedYear));
+  }
+  return recs;
 }
 
 // ── KPI ────────────────────────────────────────────────
@@ -240,6 +245,119 @@ function renderPendingList() {
   });
 }
 
+// ── Period select population ────────────────────────────
+function populatePeriodSelects() {
+  const completed = getCompleted();
+  const months = [...new Set(completed.map(r => r.date.slice(0, 7)))].sort().reverse();
+  const years  = [...new Set(completed.map(r => r.date.slice(0, 4)))].sort().reverse();
+
+  const monthSel = document.getElementById('month-select');
+  monthSel.innerHTML = months.map(m => {
+    const [y, mo] = m.split('-');
+    return `<option value="${m}">${y}年${parseInt(mo,10)}月</option>`;
+  }).join('');
+  if (!selectedMonth || !months.includes(selectedMonth)) selectedMonth = months[0] || null;
+  if (selectedMonth) monthSel.value = selectedMonth;
+
+  const yearSel = document.getElementById('year-select');
+  yearSel.innerHTML = years.map(y => `<option value="${y}">${y}年</option>`).join('');
+  if (!selectedYear || !years.includes(selectedYear)) selectedYear = years[0] || null;
+  if (selectedYear) yearSel.value = selectedYear;
+}
+
+// ── Monthly ROI chart (year mode) ──────────────────────
+function renderMonthlyChart(year) {
+  const completed = getCompleted().filter(r => year && r.date.startsWith(year));
+  const canvas = document.getElementById('chart-monthly');
+  if (!canvas) return;
+
+  const monthData = Array.from({length: 12}, (_, i) => {
+    const m = i + 1;
+    const ym = `${year}-${String(m).padStart(2,'0')}`;
+    const recs = completed.filter(r => r.date.startsWith(ym));
+    if (recs.length === 0) return { roi: null, balance: 0 };
+    const bet    = recs.reduce((s,r) => s + r.bet,    0);
+    const payout = recs.reduce((s,r) => s + r.payout, 0);
+    return { roi: bet > 0 ? payout / bet * 100 : null, balance: payout - bet };
+  });
+
+  const roiVals  = monthData.map(d => d.roi !== null ? parseFloat(d.roi.toFixed(1)) : 0);
+  const colors   = monthData.map(d => d.roi === null ? '#e2e8f0' : roiColor(d.roi));
+  const balances = monthData.map(d => d.balance);
+
+  const balanceLabelPlugin = {
+    id: 'balanceLabels',
+    afterDatasetsDraw(chart) {
+      const ctx  = chart.ctx;
+      const meta = chart.getDatasetMeta(0);
+      meta.data.forEach((bar, i) => {
+        if (monthData[i].roi === null) return;
+        const bal  = balances[i];
+        const text = (bal >= 0 ? '+¥' : '-¥') + Math.abs(bal).toLocaleString('ja-JP');
+        ctx.save();
+        ctx.font = 'bold 9px -apple-system,sans-serif';
+        ctx.textAlign    = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillStyle    = bal >= 0 ? '#22c55e' : '#ef4444';
+        ctx.fillText(text, bar.x, bar.y - 2);
+        ctx.restore();
+      });
+    }
+  };
+
+  if (charts['chart-monthly']) { charts['chart-monthly'].destroy(); }
+
+  charts['chart-monthly'] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    plugins: [balanceLabelPlugin],
+    data: {
+      labels: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+      datasets: [
+        {
+          data: roiVals,
+          backgroundColor: colors,
+          borderWidth: 0,
+          borderRadius: 3,
+          order: 2,
+        },
+        {
+          type: 'line',
+          data: Array(12).fill(100),
+          borderColor: '#64748b',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+          order: 1,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              if (ctx.datasetIndex === 1) return null;
+              const d = monthData[ctx.dataIndex];
+              if (d.roi === null) return 'データなし';
+              const sign = d.balance >= 0 ? '+¥' : '-¥';
+              return [`ROI: ${ctx.raw.toFixed(1)}%`, `収支: ${sign}${Math.abs(d.balance).toLocaleString('ja-JP')}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' } },
+        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
 // ── Render: Summary ─────────────────────────────────────
 function renderSummary() {
   const filtered = filterByPeriod(getCompleted());
@@ -255,10 +373,23 @@ function renderSummary() {
   document.getElementById('kpi-roi').textContent      = kpi.roi     !== null ? fmtPct(kpi.roi)     : '—';
   document.getElementById('kpi-hit-rate').textContent = kpi.hitRate !== null ? fmtPct(kpi.hitRate) : '—';
 
+  const isYearMode = currentPeriod === 'year';
+  document.getElementById('section-monthly').style.display = isYearMode ? '' : 'none';
+  document.getElementById('section-race').style.display    = isYearMode ? 'none' : '';
+  document.getElementById('section-day').style.display     = isYearMode ? 'none' : '';
+  document.getElementById('section-venue').style.display   = isYearMode ? 'none' : '';
+
+  if (isYearMode) {
+    renderMonthlyChart(selectedYear);
+    return;
+  }
+
+  // ① R0 を除外してレース番号別グラフ
+  const raceFiltered = filtered.filter(r => r.race >= 1 && r.race <= 12);
   const raceKeys = RACES.map(r => `R${r}`);
   renderBarChart('chart-race', 'wrap-race',
     raceKeys,
-    groupROI(filtered, r => `R${r.race}`, raceKeys),
+    groupROI(raceFiltered, r => `R${r.race}`, raceKeys),
     'x'
   );
 
@@ -268,9 +399,11 @@ function renderSummary() {
     'x'
   );
 
+  // ① 「不明」を除外して場別グラフ
+  const venueFiltered = filtered.filter(r => r.venue !== '不明');
   renderBarChart('chart-venue', 'wrap-venue',
     VENUES,
-    groupROI(filtered, r => r.venue, VENUES),
+    groupROI(venueFiltered, r => r.venue, VENUES),
     'y'
   );
 }
@@ -605,8 +738,25 @@ function init() {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentPeriod = btn.dataset.period;
+      document.getElementById('select-month-picker').style.display =
+        currentPeriod === 'select-month' ? '' : 'none';
+      document.getElementById('year-picker').style.display =
+        currentPeriod === 'year' ? '' : 'none';
+      if (currentPeriod === 'select-month' || currentPeriod === 'year') {
+        populatePeriodSelects();
+      }
       renderSummary();
     });
+  });
+
+  document.getElementById('month-select').addEventListener('change', function() {
+    selectedMonth = this.value;
+    renderSummary();
+  });
+
+  document.getElementById('year-select').addEventListener('change', function() {
+    selectedYear = this.value;
+    renderSummary();
   });
 
   document.getElementById('btn-export').addEventListener('click', exportCSV);

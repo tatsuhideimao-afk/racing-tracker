@@ -314,7 +314,31 @@ body {
 }
 
 .chart-wrap { height: 200px; position: relative; }
-.chart-tall { height: 520px; }
+.chart-tall    { height: 520px; }
+.chart-monthly { height: 240px; }
+
+/* ── Period pickers ── */
+.period-picker {
+  margin-bottom: 12px;
+}
+
+.period-picker select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 0.5px solid rgba(0,0,0,0.1);
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #fff;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  font-family: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
 
 .no-data-msg {
   position: absolute;
