@@ -494,10 +494,23 @@ function renderSummary() {
   document.getElementById('kpi-hitrate').textContent = kpi.hitRate != null ? kpi.hitRate.toFixed(1) + '%' : '—';
 
   const isYear = currentPeriod === 'year';
-  document.getElementById('section-monthly').style.display = isYear ? '' : 'none';
-  document.getElementById('section-venue').style.display   = isYear ? 'none' : '';
-  document.getElementById('section-race').style.display    = isYear ? 'none' : '';
-  document.getElementById('section-day').style.display     = isYear ? 'none' : '';
+  const isAll  = currentSport === 'all';
+
+  // section visibility
+  document.getElementById('section-monthly').style.display       = !isAll && isYear ? '' : 'none';
+  document.getElementById('section-sport-roi').style.display     = isAll ? '' : 'none';
+  document.getElementById('section-monthly-trend').style.display = isAll ? '' : 'none';
+  document.getElementById('section-moving-avg').style.display    = isAll ? '' : 'none';
+  document.getElementById('section-venue').style.display         = !isAll && !isYear ? '' : 'none';
+  document.getElementById('section-race').style.display          = !isAll && !isYear ? '' : 'none';
+  document.getElementById('section-day').style.display           = !isAll && !isYear ? '' : 'none';
+
+  if (isAll) {
+    renderSportROIChart(filtered);
+    renderMonthlyTrendChart(filtered);
+    renderMovingAvgChart();
+    return;
+  }
 
   if (isYear) {
     renderMonthlyChart(filtered, selectedPeriodValue);
@@ -546,6 +559,216 @@ function renderSummary() {
     return { roi: bet > 0 ? pay / bet * 100 : null };
   });
   renderVBar('chart-day', DAYS, dayStats.map(d => d.roi), null);
+}
+
+// ── ① 競技別ROI比較（全体タブ） ────────────────────────────
+function renderSportROIChart(filtered) {
+  const canvasId = 'chart-sport-roi';
+  const wrapId   = 'wrap-sport-roi';
+
+  const sportData = SPORTS.map(sport => {
+    const recs   = filtered.filter(r => r.sport === sport);
+    const bet    = recs.reduce((s, r) => s + r.bet, 0);
+    const payout = recs.reduce((s, r) => s + r.payout, 0);
+    return { sport, bet, payout, roi: bet > 0 ? payout / bet * 100 : null, profit: payout - bet };
+  }).filter(d => d.bet > 0);
+
+  if (!sportData.length) { setNoData(canvasId, wrapId); return; }
+  clearNoData(canvasId, wrapId);
+
+  const labels = sportData.map(d => d.sport);
+  const vals   = sportData.map(d => parseFloat(d.roi.toFixed(1)));
+  const colors = sportData.map(d => roiColor(d.roi));
+
+  const labelPlugin = {
+    id: 'sportRoiLabel',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.getDatasetMeta(0).data.forEach((bar, i) => {
+        const d      = sportData[i];
+        const roi    = vals[i].toFixed(1) + '%';
+        const profit = (d.profit >= 0 ? '+¥' : '-¥') + Math.abs(d.profit).toLocaleString('ja-JP');
+        ctx.save();
+        ctx.font = 'bold 10px -apple-system,sans-serif';
+        ctx.fillStyle = '#1e293b';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${roi}  ${profit}`, bar.x + 5, bar.y);
+        ctx.restore();
+      });
+    }
+  };
+
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(document.getElementById(canvasId).getContext('2d'), {
+    type: 'bar',
+    plugins: [labelPlugin],
+    data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 0, borderRadius: 3 }] },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 140 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `ROI: ${ctx.raw.toFixed(1)}%` } }
+      },
+      scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' } },
+        y: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#64748b' } }
+      }
+    }
+  });
+}
+
+// ── ② 月別収支推移（全体タブ） ─────────────────────────────
+function renderMonthlyTrendChart(filtered) {
+  const canvasId = 'chart-monthly-trend';
+  const wrapId   = 'wrap-monthly-trend';
+
+  const monthMap = {};
+  filtered.forEach(r => {
+    const ym = r.date?.slice(0, 7);
+    if (!ym) return;
+    if (!monthMap[ym]) monthMap[ym] = { bet: 0, payout: 0 };
+    monthMap[ym].bet    += r.bet;
+    monthMap[ym].payout += r.payout;
+  });
+
+  const months = Object.keys(monthMap).sort();
+  if (!months.length) { setNoData(canvasId, wrapId); return; }
+  clearNoData(canvasId, wrapId);
+
+  const profits = months.map(m => monthMap[m].payout - monthMap[m].bet);
+  const rois    = months.map(m => monthMap[m].bet > 0 ? monthMap[m].payout / monthMap[m].bet * 100 : 0);
+  const colors  = profits.map(p => p >= 0 ? GREEN : RED);
+  const labels  = months.map(m => { const [y, mo] = m.split('-'); return `${y.slice(2)}/${parseInt(mo)}`; });
+
+  const profitLabelPlugin = {
+    id: 'monthlyTrendLabel',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.getDatasetMeta(0).data.forEach((bar, i) => {
+        const p    = profits[i];
+        const text = (p >= 0 ? '+¥' : '-¥') + Math.abs(p).toLocaleString('ja-JP');
+        ctx.save();
+        ctx.font = 'bold 9px -apple-system,sans-serif';
+        ctx.fillStyle = colors[i];
+        ctx.textAlign = 'center';
+        ctx.textBaseline = p >= 0 ? 'bottom' : 'top';
+        ctx.fillText(text, bar.x, p >= 0 ? bar.y - 2 : bar.y + bar.height + 2);
+        ctx.restore();
+      });
+    }
+  };
+
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(document.getElementById(canvasId).getContext('2d'), {
+    type: 'bar',
+    plugins: [profitLabelPlugin],
+    data: { labels, datasets: [{ data: rois, backgroundColor: colors, borderWidth: 0, borderRadius: 3 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { top: 22, bottom: 22 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const p = profits[ctx.dataIndex];
+              return [`ROI: ${ctx.raw.toFixed(1)}%`, `収支: ${p >= 0 ? '+¥' : '-¥'}${Math.abs(p).toLocaleString('ja-JP')}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' } },
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 11 }, color: '#64748b' },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+// ── ③ 回収率移動平均（全体タブ・直近30件） ──────────────────
+function renderMovingAvgChart() {
+  const canvasId = 'chart-moving-avg';
+  const canvas   = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  // 全completed records を日付/createdAt 昇順で取得し直近30件
+  const completed = [...getCompleted()]
+    .sort((a, b) => a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.createdAt - b.createdAt)
+    .slice(-30);
+
+  if (!completed.length) {
+    if (charts[canvasId]) { charts[canvasId].destroy(); charts[canvasId] = null; }
+    canvas.style.display = 'none';
+    const wrap = canvas.parentElement;
+    if (!wrap.querySelector('.no-data-msg')) {
+      const msg = document.createElement('div'); msg.className = 'no-data-msg'; msg.textContent = 'データなし';
+      wrap.appendChild(msg);
+    }
+    return;
+  }
+  canvas.parentElement?.querySelectorAll('.no-data-msg').forEach(el => el.remove());
+  canvas.style.display = '';
+
+  const rois   = completed.map(r => r.bet > 0 ? parseFloat((r.payout / r.bet * 100).toFixed(1)) : 0);
+  const labels = completed.map(r => {
+    const [, m, d] = (r.date || '').split('-');
+    return m && d ? `${parseInt(m)}/${parseInt(d)}` : '';
+  });
+
+  const baselinePlugin = {
+    id: 'movingAvgBaseline',
+    afterDatasetsDraw(chart) {
+      const { ctx, scales, chartArea } = chart;
+      const y = scales.y.getPixelForValue(100);
+      if (y < chartArea.top || y > chartArea.bottom) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    plugins: [baselinePlugin],
+    data: {
+      labels,
+      datasets: [{
+        data: rois,
+        borderColor: '#0ea5c8',
+        backgroundColor: 'rgba(14,165,200,0.08)',
+        borderWidth: 2,
+        pointRadius: completed.length <= 15 ? 4 : 2,
+        pointBackgroundColor: '#0ea5c8',
+        tension: 0.3,
+        fill: true
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `ROI: ${ctx.raw.toFixed(1)}%` } }
+      },
+      scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, color: '#64748b', maxRotation: 45 } },
+        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' }, beginAtZero: true }
+      }
+    }
+  });
 }
 
 // ── Monthly chart ───────────────────────────────────────────

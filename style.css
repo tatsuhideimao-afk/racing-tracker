@@ -318,8 +318,9 @@ body {
   letter-spacing: 0.02em;
 }
 .chart-wrap { height: 200px; position: relative; }
-.chart-tall   { height: 320px; }
-.chart-monthly{ height: 240px; }
+.chart-tall      { height: 320px; }
+.chart-monthly   { height: 240px; }
+.chart-sport-roi { height: 180px; }
 .no-data-msg {
   position: absolute; inset: 0;
   display: flex; align-items: center; justify-content: center;
