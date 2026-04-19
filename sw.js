@@ -29,6 +29,11 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  // GAS・Google API へのリクエストは SW を経由せずネットワークに直接アクセス
+  if (url.hostname.endsWith('google.com') || url.hostname.endsWith('googleapis.com')) {
+    return;
+  }
   if (event.request.method !== 'GET') return;
   event.respondWith(
     caches.match(event.request).then(cached => {
