@@ -57,7 +57,11 @@ function fmtDate(s) {
   return `${y}/${m}/${d}`;
 }
 
-function dow(dateStr) { return DAYS[new Date(dateStr + 'T00:00:00').getDay()]; }
+function dow(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-');
+  return DAYS[new Date(+y, +m - 1, +d).getDay()];
+}
 
 function fmtMoney(n) {
   if (n == null || isNaN(n)) return '—';
@@ -740,7 +744,11 @@ function renderSummary() {
 
   // 曜日別ROI（縦棒）
   const dayStats = DAYS.map((_, i) => {
-    const recs = filtered.filter(r => r.date && new Date(r.date + 'T00:00:00').getDay() === i);
+    const recs = filtered.filter(r => {
+      if (!r.date) return false;
+      const [ry, rm, rd] = r.date.split('-');
+      return new Date(+ry, +rm - 1, +rd).getDay() === i;
+    });
     const bet  = recs.reduce((s, r) => s + r.bet, 0);
     const pay  = recs.reduce((s, r) => s + r.payout, 0);
     return { roi: bet > 0 ? pay / bet * 100 : null };
