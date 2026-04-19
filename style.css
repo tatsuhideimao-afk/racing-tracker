@@ -511,4 +511,26 @@ body {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.toast-error { background: var(--red); }
 
+/* ── Member selector (個人別タブ) ── */
+.member-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.member-btn {
+  padding: 7px 20px;
+  border: var(--bw) solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.member-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
 ::-webkit-scrollbar { width: 0; height: 0; }

@@ -4,13 +4,15 @@
 const VENUES = {
   '競馬（中央）': ['札幌','函館','福島','新潟','中山','東京','中京','京都','阪神','小倉'],
   '競馬（地方）': ['帯広','門別','盛岡','水沢','浦和','船橋','大井','川崎','金沢','笠松','名古屋','園田','姫路','高知','佐賀'],
-  '競輪': ['青森','いわき平','弥彦','前橋','取手','宇都宮','大宮','西武園','京王閣','立川','松戸','千葉','川崎','横浜','平塚','小田原','伊東','静岡','浜松','豊橋','岐阜','四日市','大津','奈良','向日町','和歌山','岸和田','玉野','広島','防府','高松','観音寺','小松島','高知','松山','久留米','小倉','直方','飯塚','武雄','佐世保','熊本','別府'],
+  '競輪': ['函館','青森','いわき平','弥彦','前橋','取手','宇都宮','大宮','西武園','京王閣','立川','松戸','千葉','川崎','横浜','平塚','小田原','伊東','静岡','浜松','豊橋','岐阜','大垣','四日市','大津','奈良','向日町','和歌山','岸和田','玉野','広島','防府','高松','観音寺','小松島','高知','松山','久留米','小倉','直方','飯塚','武雄','佐世保','熊本','別府'],
   'オートレース': ['船橋','川口','伊勢崎','浜松','山陽','飯塚','川越'],
   '競艇': ['桐生','戸田','江戸川','平和島','多摩川','浜名湖','蒲郡','常滑','津','三国','琵琶湖','住之江','尼崎','鳴門','丸亀','児島','宮島','徳山','下関','若松','芦屋','福岡','唐津','大村']
 };
 const SPORTS   = Object.keys(VENUES);
 const RACES    = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS     = ['日','月','火','水','木','金','土'];
+const MEMBERS  = ['大迫', '今伊', '今尾', '藤原'];
+const BUY_TYPES = ['ノリ', '単舞'];
 const GREEN    = '#3a9c2e';
 const RED      = '#e24b4a';
 const GREY     = '#aab2bb';
@@ -24,6 +26,7 @@ let currentSport  = 'all';
 let selectedPeriodValue = null;   // YYYY-MM or YYYY
 let currentEditId   = null;
 let currentPayoutId = null;
+let currentMember   = '大迫';
 let charts = {};
 let toastTimer = null;
 
@@ -276,7 +279,11 @@ function filterBySport(recs) {
   return recs.filter(r => r.sport === currentSport);
 }
 
-function getFiltered() { return filterBySport(filterByPeriod(getCompleted())); }
+function getNoriOnly(recs) { return recs.filter(r => !r.buyType || r.buyType === 'ノリ'); }
+function getFiltered() { return filterBySport(filterByPeriod(getNoriOnly(getCompleted()))); }
+function getIndividualFiltered() {
+  return filterByPeriod(getCompleted().filter(r => r.buyType === '単舞' && r.member === currentMember));
+}
 
 // ── Badge ──────────────────────────────────────────────────
 function updateBadge(n) {
@@ -379,13 +386,32 @@ function populatePeriodSelect() {
 // ── Render: Sport tabs ─────────────────────────────────────
 function renderSportTabs() {
   const bar = document.getElementById('sport-tab-bar');
-  const tabs = [{ value: 'all', label: '全体' }, ...SPORTS.map(s => ({ value: s, label: s }))];
+  const tabs = [
+    { value: 'all', label: '全体' },
+    ...SPORTS.map(s => ({ value: s, label: s })),
+    { value: 'individual', label: '個人別' }
+  ];
   bar.innerHTML = tabs.map(t =>
     `<button class="sport-tab ${currentSport === t.value ? 'active' : ''}" data-sport="${esc(t.value)}">${esc(t.label)}</button>`
   ).join('');
   bar.querySelectorAll('.sport-tab').forEach(btn => {
     btn.addEventListener('click', () => {
       currentSport = btn.dataset.sport;
+      renderSummary();
+    });
+  });
+}
+
+// ── Render: Member selector ────────────────────────────────
+function renderMemberSelector() {
+  const container = document.getElementById('member-selector');
+  if (!container) return;
+  container.innerHTML = MEMBERS.map(m =>
+    `<button class="member-btn ${m === currentMember ? 'active' : ''}" data-member="${esc(m)}">${esc(m)}</button>`
+  ).join('');
+  container.querySelectorAll('.member-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentMember = btn.dataset.member;
       renderSummary();
     });
   });
@@ -587,8 +613,19 @@ function renderSummary() {
   populatePeriodSelect();
   renderSportTabs();
 
-  const filtered = getFiltered();
-  const kpi      = calcKPI(filtered);
+  const isYear       = currentPeriod === 'year';
+  const isAll        = currentSport === 'all';
+  const isIndividual = currentSport === 'individual';
+
+  let filtered;
+  if (isIndividual) {
+    renderMemberSelector();
+    filtered = getIndividualFiltered();
+  } else {
+    filtered = getFiltered();
+  }
+
+  const kpi = calcKPI(filtered);
 
   // KPI values
   document.getElementById('kpi-bet').textContent    = fmtMoney(kpi.totalBet);
@@ -604,17 +641,21 @@ function renderSummary() {
 
   document.getElementById('kpi-hitrate').textContent = kpi.hitRate != null ? kpi.hitRate.toFixed(1) + '%' : '—';
 
-  const isYear = currentPeriod === 'year';
-  const isAll  = currentSport === 'all';
-
   // section visibility
-  document.getElementById('section-monthly').style.display       = !isAll && isYear ? '' : 'none';
-  document.getElementById('section-sport-roi').style.display     = isAll ? '' : 'none';
-  document.getElementById('section-monthly-trend').style.display = isAll ? '' : 'none';
-  document.getElementById('section-moving-avg').style.display    = isAll ? '' : 'none';
-  document.getElementById('section-venue').style.display         = !isAll && !isYear ? '' : 'none';
-  document.getElementById('section-race').style.display          = !isAll && !isYear ? '' : 'none';
-  document.getElementById('section-day').style.display           = !isAll && !isYear ? '' : 'none';
+  document.getElementById('section-member-select').style.display    = isIndividual ? '' : 'none';
+  document.getElementById('section-individual-sport').style.display = isIndividual ? '' : 'none';
+  document.getElementById('section-monthly').style.display          = !isAll && !isIndividual && isYear ? '' : 'none';
+  document.getElementById('section-sport-roi').style.display        = isAll ? '' : 'none';
+  document.getElementById('section-monthly-trend').style.display    = isAll ? '' : 'none';
+  document.getElementById('section-moving-avg').style.display       = isAll ? '' : 'none';
+  document.getElementById('section-venue').style.display            = !isAll && !isIndividual && !isYear ? '' : 'none';
+  document.getElementById('section-race').style.display             = !isAll && !isIndividual && !isYear ? '' : 'none';
+  document.getElementById('section-day').style.display              = !isAll && !isIndividual && !isYear ? '' : 'none';
+
+  if (isIndividual) {
+    renderIndividualSportChart(filtered);
+    return;
+  }
 
   if (isAll) {
     renderSportROIChart(filtered);
@@ -731,6 +772,67 @@ function renderSportROIChart(filtered) {
   });
 }
 
+// ── 個人別 競技別収支横棒グラフ ────────────────────────────
+function renderIndividualSportChart(filtered) {
+  const canvasId = 'chart-individual-sport';
+  const wrapId   = 'wrap-individual-sport';
+
+  const sportData = SPORTS.map(sport => {
+    const recs   = filtered.filter(r => r.sport === sport);
+    const bet    = recs.reduce((s, r) => s + r.bet, 0);
+    const payout = recs.reduce((s, r) => s + r.payout, 0);
+    return { sport, profit: payout - bet, bet };
+  }).filter(d => d.bet > 0);
+
+  if (!sportData.length) { setNoData(canvasId, wrapId); return; }
+  clearNoData(canvasId, wrapId);
+
+  const labels = sportData.map(d => d.sport);
+  const vals   = sportData.map(d => d.profit);
+  const colors = vals.map(v => v >= 0 ? GREEN : RED);
+
+  const labelPlugin = {
+    id: 'indivSportLabel',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.getDatasetMeta(0).data.forEach((bar, i) => {
+        const p    = vals[i];
+        const text = (p >= 0 ? '+¥' : '-¥') + Math.abs(p).toLocaleString('ja-JP');
+        ctx.save();
+        ctx.font = 'bold 10px -apple-system,sans-serif';
+        ctx.fillStyle = '#1e293b';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, bar.x + 5, bar.y);
+        ctx.restore();
+      });
+    }
+  };
+
+  if (charts[canvasId]) charts[canvasId].destroy();
+  charts[canvasId] = new Chart(document.getElementById(canvasId).getContext('2d'), {
+    type: 'bar',
+    plugins: [labelPlugin],
+    data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 0, borderRadius: 3 }] },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      layout: { padding: { right: 130 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => {
+          const p = vals[ctx.dataIndex];
+          return `収支: ${p >= 0 ? '+¥' : '-¥'}${Math.abs(p).toLocaleString('ja-JP')}`;
+        }}}
+      },
+      scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' } },
+        y: { grid: { display: false }, ticks: { font: { size: 11 }, color: '#64748b' } }
+      }
+    }
+  });
+}
+
 // ── ② 月別収支推移（全体タブ） ─────────────────────────────
 function renderMonthlyTrendChart(filtered) {
   const canvasId = 'chart-monthly-trend';
@@ -809,8 +911,8 @@ function renderMovingAvgChart() {
   const canvas   = document.getElementById(canvasId);
   if (!canvas) return;
 
-  // 全completed records を日付/createdAt 昇順で取得し直近30件
-  const completed = [...getCompleted()]
+  // ノリのみ・日付/createdAt 昇順・直近30件
+  const completed = [...getNoriOnly(getCompleted())]
     .sort((a, b) => a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.createdAt - b.createdAt)
     .slice(-30);
 
@@ -1056,6 +1158,17 @@ function openEditModal(id) {
   if (!r) return;
   currentEditId = id;
 
+  // buyType / member
+  const buyTypeSel = document.getElementById('modal-buytype');
+  buyTypeSel.value = r.buyType || 'ノリ';
+  const memberRow = document.getElementById('modal-member-row');
+  memberRow.style.display = buyTypeSel.value === '単舞' ? '' : 'none';
+  const memberSel = document.getElementById('modal-member');
+  memberSel.value = r.member || '';
+  buyTypeSel.onchange = () => {
+    memberRow.style.display = buyTypeSel.value === '単舞' ? '' : 'none';
+  };
+
   // populate sport select
   const sportSel = document.getElementById('modal-sport');
   sportSel.innerHTML = SPORTS.map(s =>
@@ -1085,6 +1198,8 @@ function closeEditModal() {
 function saveEditModal() {
   if (!currentEditId) return;
   const date    = document.getElementById('modal-date').value;
+  const buyType = document.getElementById('modal-buytype').value;
+  const member  = buyType === '単舞' ? document.getElementById('modal-member').value : '';
   const sport   = document.getElementById('modal-sport').value;
   const venue   = document.getElementById('modal-venue').value;
   const race    = parseInt(document.getElementById('modal-race').value, 10);
@@ -1099,7 +1214,7 @@ function saveEditModal() {
   if (payout !== null && (isNaN(payout) || payout < 0)) {
     showToast('払戻金は0以上の数値を入力してください', 'error'); return;
   }
-  updateRec(currentEditId, { date, sport, venue, race, bet, payout, memo });
+  updateRec(currentEditId, { date, buyType, member, sport, venue, race, bet, payout, memo });
   closeEditModal();
   showToast('変更を保存しました');
   renderHistoryList();
@@ -1125,25 +1240,30 @@ function showToast(msg, type = 'success') {
 
 // ── Register ───────────────────────────────────────────────
 function registerRecord() {
-  const date   = document.getElementById('input-date').value;
-  const sport  = document.getElementById('input-sport').value;
-  const venue  = document.getElementById('input-venue').value;
-  const race   = parseInt(document.getElementById('input-race').value, 10);
-  const bet    = parseInt(document.getElementById('input-bet').value, 10);
-  const payRaw = document.getElementById('input-payout').value.trim();
-  const payout = payRaw !== '' ? parseInt(payRaw, 10) : null;
-  const memo   = document.getElementById('input-memo').value.trim();
+  const date    = document.getElementById('input-date').value;
+  const buyType = document.getElementById('input-buytype').value;
+  const member  = buyType === '単舞' ? document.getElementById('input-member').value : '';
+  const sport   = document.getElementById('input-sport').value;
+  const venue   = document.getElementById('input-venue').value;
+  const race    = parseInt(document.getElementById('input-race').value, 10);
+  const bet     = parseInt(document.getElementById('input-bet').value, 10);
+  const payRaw  = document.getElementById('input-payout').value.trim();
+  const payout  = payRaw !== '' ? parseInt(payRaw, 10) : null;
+  const memo    = document.getElementById('input-memo').value.trim();
 
   if (!date)           { showToast('日付を入力してください', 'error'); return; }
   if (!sport)          { showToast('競技を選択してください', 'error'); return; }
   if (!venue)          { showToast('場名を選択してください', 'error'); return; }
   if (!race)           { showToast('レース番号を選択してください', 'error'); return; }
   if (!bet || bet <= 0){ showToast('掛け金を入力してください', 'error'); return; }
+  if (buyType === '単舞' && !member) { showToast('メンバーを選択してください', 'error'); return; }
 
-  addRecord({ date, sport, venue, race, bet, payout, memo });
+  addRecord({ date, buyType, member, sport, venue, race, bet, payout, memo });
   showToast('登録しました');
 
   // reset partial fields
+  document.getElementById('input-buytype').value   = 'ノリ';
+  document.getElementById('input-member-row').style.display = 'none';
   document.getElementById('input-venue').innerHTML = '<option value="">競技を先に選択</option>';
   document.getElementById('input-venue').disabled  = true;
   document.getElementById('input-sport').value     = '';
@@ -1156,6 +1276,12 @@ function registerRecord() {
 // ── Init ─────────────────────────────────────────────────
 function init() {
   loadStorage();
+
+  // BuyType → member visibility
+  const buyTypeSel = document.getElementById('input-buytype');
+  buyTypeSel.addEventListener('change', () => {
+    document.getElementById('input-member-row').style.display = buyTypeSel.value === '単舞' ? '' : 'none';
+  });
 
   // Sport selects
   const sportSel = document.getElementById('input-sport');

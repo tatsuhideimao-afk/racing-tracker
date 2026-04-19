@@ -37,6 +37,23 @@
         <input type="date" id="input-date">
       </div>
       <div class="form-group">
+        <label for="input-buytype">種別</label>
+        <select id="input-buytype">
+          <option value="ノリ">ノリ</option>
+          <option value="単舞">単舞</option>
+        </select>
+      </div>
+      <div class="form-group" id="input-member-row" style="display:none">
+        <label for="input-member">メンバー</label>
+        <select id="input-member">
+          <option value="">選択してください</option>
+          <option value="大迫">大迫</option>
+          <option value="今伊">今伊</option>
+          <option value="今尾">今尾</option>
+          <option value="藤原">藤原</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label for="input-sport">競技</label>
         <select id="input-sport">
           <option value="">選択してください</option>
@@ -126,6 +143,11 @@
         <!-- JS で生成 -->
       </div>
 
+      <!-- メンバー選択（個人別タブ） -->
+      <div id="section-member-select" style="display:none">
+        <div id="member-selector" class="member-selector"></div>
+      </div>
+
       <!-- KPI -->
       <div class="kpi-grid">
         <div class="kpi-card">
@@ -148,6 +170,12 @@
           <div class="kpi-label">的中率</div>
           <div class="kpi-value" id="kpi-hitrate">—</div>
         </div>
+      </div>
+
+      <!-- 競技別収支（個人別タブ） -->
+      <div class="chart-section" id="section-individual-sport" style="display:none">
+        <div class="chart-title">競技別収支</div>
+        <div class="chart-wrap chart-sport-roi" id="wrap-individual-sport"><canvas id="chart-individual-sport"></canvas></div>
       </div>
 
       <!-- 月別収支（年度別のみ） -->
@@ -273,6 +301,23 @@
     <div class="form-group">
       <label for="modal-date">日付</label>
       <input type="date" id="modal-date">
+    </div>
+    <div class="form-group">
+      <label for="modal-buytype">種別</label>
+      <select id="modal-buytype">
+        <option value="ノリ">ノリ</option>
+        <option value="単舞">単舞</option>
+      </select>
+    </div>
+    <div class="form-group" id="modal-member-row" style="display:none">
+      <label for="modal-member">メンバー</label>
+      <select id="modal-member">
+        <option value="">選択してください</option>
+        <option value="大迫">大迫</option>
+        <option value="今伊">今伊</option>
+        <option value="今尾">今尾</option>
+        <option value="藤原">藤原</option>
+      </select>
     </div>
     <div class="form-group">
       <label for="modal-sport">競技</label>
