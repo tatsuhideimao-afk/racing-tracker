@@ -72,11 +72,27 @@ function gasUrl() { return window.CONFIG?.GAS_URL || ''; }
 
 async function gasFetch(opts = {}) {
   const url = gasUrl();
-  if (!url) return null;
+  if (!url) {
+    console.log('[GAS] GAS_URL が未設定です');
+    return null;
+  }
+  console.log('[GAS] URL:', url);
+  if (opts.body) console.log('[GAS] 送信データ:', opts.body);
+
   try {
-    const res = await fetch(url, { mode: 'cors', ...opts });
-    return await res.json();
-  } catch { return null; }
+    const res = await fetch(url, {
+      mode: 'cors',
+      redirect: 'follow',
+      ...opts
+    });
+    console.log('[GAS] レスポンスステータス:', res.status, res.statusText);
+    const data = await res.json();
+    console.log('[GAS] レスポンスデータ:', data);
+    return data;
+  } catch (err) {
+    console.error('[GAS] fetchエラー:', err);
+    return null;
+  }
 }
 
 async function syncWithGAS() {
@@ -86,12 +102,18 @@ async function syncWithGAS() {
   // flush pending writes
   const failed = [];
   for (const item of pendingSyncs) {
+    console.log('[GAS] POST送信:', item.action, item.record?.id);
     const res = await gasFetch({
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(item)
     });
-    if (!res?.success) failed.push(item);
+    if (!res || res.status !== 'success') {
+      console.warn('[GAS] POST失敗:', res);
+      failed.push(item);
+    } else {
+      console.log('[GAS] POST成功:', item.action, item.record?.id);
+    }
   }
   pendingSyncs = failed;
 

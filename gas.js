@@ -4,10 +4,13 @@
  * 使い方:
  *  1. Google スプレッドシートを新規作成し、シート名を「records」に変更
  *  2. 拡張機能 → Apps Script を開き、このファイルの内容をすべて貼り付けて保存
- *  3. デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
- *     - 次のユーザーとして実行: 自分
- *     - アクセスできるユーザー: 全員
- *  4. デプロイ後に表示されるURLを config.js の GAS_URL に設定
+ *  3. デプロイ → 新しいデプロイ（または既存デプロイを「バージョン管理」から更新）
+ *     種類: ウェブアプリ
+ *     次のユーザーとして実行: 自分
+ *     アクセスできるユーザー: 全員
+ *  4. デプロイURLを config.js の GAS_URL に設定
+ *
+ * レスポンス形式: { status: 'success' } または { status: 'error', message: '...' }
  */
 
 const SHEET_NAME = 'records';
@@ -21,7 +24,7 @@ function doGet(e) {
 
     const data = sheet.getDataRange().getValues();
     if (data.length <= 1) {
-      return respond({ success: true, records: [] });
+      return respond({ status: 'success', records: [] });
     }
 
     const records = data.slice(1).map(row => {
@@ -35,16 +38,19 @@ function doGet(e) {
       if (obj.bet    !== null) obj.bet    = Number(obj.bet);
       if (obj.payout !== null) obj.payout = Number(obj.payout);
       return obj;
-    }).filter(r => r.id);  // 空行を除外
+    }).filter(r => r.id);
 
-    return respond({ success: true, records });
+    return respond({ status: 'success', records });
   } catch (err) {
-    return respond({ success: false, error: err.message }, true);
+    return respond({ status: 'error', message: err.toString() });
   }
 }
 
 // ── POST: 追加 / 更新 / 削除 ─────────────────────────────
 function doPost(e) {
+  const lock = LockService.getScriptLock();
+  lock.tryLock(10000);
+
   try {
     const payload = JSON.parse(e.postData.contents);
     const { action, record } = payload;
@@ -53,28 +59,31 @@ function doPost(e) {
 
     if (action === 'add') {
       sheet.appendRow(HEADERS.map(h => record[h] ?? ''));
-      return respond({ success: true });
+      return respond({ status: 'success' });
     }
 
     if (action === 'update') {
       const rowIdx = findRowById(sheet, record.id);
-      if (rowIdx < 0) return respond({ success: false, error: 'Record not found' });
+      if (rowIdx < 0) return respond({ status: 'error', message: 'Record not found: ' + record.id });
       HEADERS.forEach((h, i) => {
         sheet.getRange(rowIdx, i + 1).setValue(record[h] ?? '');
       });
-      return respond({ success: true });
+      return respond({ status: 'success' });
     }
 
     if (action === 'delete') {
       const rowIdx = findRowById(sheet, record.id);
-      if (rowIdx < 0) return respond({ success: false, error: 'Record not found' });
+      if (rowIdx < 0) return respond({ status: 'error', message: 'Record not found: ' + record.id });
       sheet.deleteRow(rowIdx);
-      return respond({ success: true });
+      return respond({ status: 'success' });
     }
 
-    return respond({ success: false, error: `Unknown action: ${action}` });
+    return respond({ status: 'error', message: 'Unknown action: ' + action });
+
   } catch (err) {
-    return respond({ success: false, error: err.message }, true);
+    return respond({ status: 'error', message: err.toString() });
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -82,9 +91,7 @@ function doPost(e) {
 function getSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
-  }
+  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
   return sheet;
 }
 
