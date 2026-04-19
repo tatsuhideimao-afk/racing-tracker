@@ -122,7 +122,16 @@ async function loadFromGAS(manual = false) {
     });
     const data = await res.json();
     if (data?.status === 'success' && Array.isArray(data.records)) {
-      records = data.records;
+      // GAS が buyType/member を返さない場合（列未追加）、ローカルの値を保持してマージ
+      const localById = new Map(records.map(r => [r.id, r]));
+      records = data.records.map(gasRec => {
+        const local = localById.get(gasRec.id);
+        if (local) {
+          if (gasRec.buyType == null && local.buyType != null) gasRec.buyType = local.buyType;
+          if (gasRec.member  == null && local.member  != null) gasRec.member  = local.member;
+        }
+        return gasRec;
+      });
       saveStorage();
       updateBadge(getPending().length);
       const activeTab = document.querySelector('.tab-content.active')?.id?.replace('tab-', '');
@@ -282,7 +291,9 @@ function filterBySport(recs) {
 function getNoriOnly(recs) { return recs.filter(r => !r.buyType || r.buyType === 'ノリ'); }
 function getFiltered() { return filterBySport(filterByPeriod(getNoriOnly(getCompleted()))); }
 function getIndividualFiltered() {
-  return filterByPeriod(getCompleted().filter(r => r.buyType === '単舞' && r.member === currentMember));
+  let recs = getCompleted().filter(r => r.buyType === '単舞' && r.member === currentMember);
+  if (currentMember === '今伊') recs = recs.filter(r => r.sport === '競艇');
+  return filterByPeriod(recs);
 }
 
 // ── Badge ──────────────────────────────────────────────────
@@ -387,9 +398,9 @@ function populatePeriodSelect() {
 function renderSportTabs() {
   const bar = document.getElementById('sport-tab-bar');
   const tabs = [
+    { value: 'individual', label: '個人別' },
     { value: 'all', label: '全体' },
-    ...SPORTS.map(s => ({ value: s, label: s })),
-    { value: 'individual', label: '個人別' }
+    ...SPORTS.map(s => ({ value: s, label: s }))
   ];
   bar.innerHTML = tabs.map(t =>
     `<button class="sport-tab ${currentSport === t.value ? 'active' : ''}" data-sport="${esc(t.value)}">${esc(t.label)}</button>`
@@ -641,19 +652,26 @@ function renderSummary() {
 
   document.getElementById('kpi-hitrate').textContent = kpi.hitRate != null ? kpi.hitRate.toFixed(1) + '%' : '—';
 
+  const isImai = isIndividual && currentMember === '今伊';
+
   // section visibility
-  document.getElementById('section-member-select').style.display    = isIndividual ? '' : 'none';
-  document.getElementById('section-individual-sport').style.display = isIndividual ? '' : 'none';
-  document.getElementById('section-monthly').style.display          = !isAll && !isIndividual && isYear ? '' : 'none';
-  document.getElementById('section-sport-roi').style.display        = isAll ? '' : 'none';
-  document.getElementById('section-monthly-trend').style.display    = isAll ? '' : 'none';
-  document.getElementById('section-moving-avg').style.display       = isAll ? '' : 'none';
-  document.getElementById('section-venue').style.display            = !isAll && !isIndividual && !isYear ? '' : 'none';
-  document.getElementById('section-race').style.display             = !isAll && !isIndividual && !isYear ? '' : 'none';
-  document.getElementById('section-day').style.display              = !isAll && !isIndividual && !isYear ? '' : 'none';
+  document.getElementById('section-member-select').style.display       = isIndividual ? '' : 'none';
+  document.getElementById('section-individual-sport').style.display    = isIndividual && !isImai ? '' : 'none';
+  document.getElementById('section-individual-venue').style.display    = isImai ? '' : 'none';
+  document.getElementById('section-monthly').style.display             = !isAll && !isIndividual && isYear ? '' : 'none';
+  document.getElementById('section-sport-roi').style.display           = isAll ? '' : 'none';
+  document.getElementById('section-monthly-trend').style.display       = isAll ? '' : 'none';
+  document.getElementById('section-moving-avg').style.display          = isAll ? '' : 'none';
+  document.getElementById('section-venue').style.display               = !isAll && !isIndividual && !isYear ? '' : 'none';
+  document.getElementById('section-race').style.display                = !isAll && !isIndividual && !isYear ? '' : 'none';
+  document.getElementById('section-day').style.display                 = !isAll && !isIndividual && !isYear ? '' : 'none';
 
   if (isIndividual) {
-    renderIndividualSportChart(filtered);
+    if (isImai) {
+      renderIndividualVenueChart(filtered);
+    } else {
+      renderIndividualSportChart(filtered);
+    }
     return;
   }
 
@@ -831,6 +849,33 @@ function renderIndividualSportChart(filtered) {
       }
     }
   });
+}
+
+// ── 今伊個人別 場別ROI横棒グラフ ───────────────────────────
+function renderIndividualVenueChart(filtered) {
+  const canvasId = 'chart-individual-venue';
+  const wrapId   = 'wrap-individual-venue';
+
+  const venueStats = {};
+  filtered.forEach(r => {
+    if (!venueStats[r.venue]) venueStats[r.venue] = { bet: 0, payout: 0, count: 0 };
+    venueStats[r.venue].bet    += r.bet;
+    venueStats[r.venue].payout += r.payout;
+    venueStats[r.venue].count++;
+  });
+  const entries = Object.entries(venueStats)
+    .filter(([, s]) => s.bet > 0)
+    .map(([venue, s]) => ({ venue, roi: s.payout / s.bet * 100, count: s.count }))
+    .sort((a, b) => b.roi - a.roi);
+
+  const wrapEl = document.getElementById(wrapId);
+  if (wrapEl) wrapEl.style.height = Math.max(120, entries.length * 32) + 'px';
+
+  renderHBar(canvasId, wrapId,
+    entries.map(e => e.venue),
+    entries.map(e => e.roi),
+    entries.map(e => e.count), 3
+  );
 }
 
 // ── ② 月別収支推移（全体タブ） ─────────────────────────────
