@@ -291,9 +291,26 @@ function filterBySport(recs) {
 function getNoriOnly(recs) { return recs.filter(r => !r.buyType || r.buyType === 'ノリ'); }
 function getFiltered() { return filterBySport(filterByPeriod(getNoriOnly(getCompleted()))); }
 function getIndividualFiltered() {
-  let recs = getCompleted().filter(r => r.buyType === '単舞' && r.member === currentMember);
+  // getCompleted() ではなく records 全件から検索（結果待ちも表示対象）
+  let recs = records.filter(r => r.buyType === '単舞' && r.member === currentMember);
   if (currentMember === '今伊') recs = recs.filter(r => r.sport === '競艇');
-  return filterByPeriod(recs);
+  const periodFiltered = filterByPeriod(recs);
+
+  // ── デバッグログ ──
+  console.log('[個人別] 全レコード数:', records.length);
+  console.log('[個人別] buyType=単舞 のレコード数:', records.filter(r => r.buyType === '単舞').length);
+  console.log('[個人別] 選択中のメンバー:', currentMember);
+  console.log('[個人別] メンバーフィルター後:', recs.length, '件  期間フィルター後:', periodFiltered.length, '件');
+  if (records.length > 0) {
+    console.log('[個人別] 先頭3件サンプル:', records.slice(0, 3).map(r => ({
+      buyType: JSON.stringify(r.buyType),
+      member:  JSON.stringify(r.member),
+      payout:  r.payout,
+      date:    r.date
+    })));
+  }
+
+  return periodFiltered;
 }
 
 // ── Badge ──────────────────────────────────────────────────
@@ -794,9 +811,11 @@ function renderSportROIChart(filtered) {
 function renderIndividualSportChart(filtered) {
   const canvasId = 'chart-individual-sport';
   const wrapId   = 'wrap-individual-sport';
+  // 払戻確定済みのみチャート対象（pending は payout=null のため除外）
+  const completed = filtered.filter(r => r.payout !== null);
 
   const sportData = SPORTS.map(sport => {
-    const recs   = filtered.filter(r => r.sport === sport);
+    const recs   = completed.filter(r => r.sport === sport);
     const bet    = recs.reduce((s, r) => s + r.bet, 0);
     const payout = recs.reduce((s, r) => s + r.payout, 0);
     return { sport, profit: payout - bet, bet };
@@ -855,9 +874,11 @@ function renderIndividualSportChart(filtered) {
 function renderIndividualVenueChart(filtered) {
   const canvasId = 'chart-individual-venue';
   const wrapId   = 'wrap-individual-venue';
+  // 払戻確定済みのみROI計算対象
+  const completed = filtered.filter(r => r.payout !== null);
 
   const venueStats = {};
-  filtered.forEach(r => {
+  completed.forEach(r => {
     if (!venueStats[r.venue]) venueStats[r.venue] = { bet: 0, payout: 0, count: 0 };
     venueStats[r.venue].bet    += r.bet;
     venueStats[r.venue].payout += r.payout;
