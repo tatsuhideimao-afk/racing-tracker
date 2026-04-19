@@ -95,9 +95,21 @@ async function gasFetch(opts = {}) {
   }
 }
 
+// 同期ボタンのスピン制御
+function setSyncSpinning(spinning) {
+  document.querySelectorAll('.btn-sync').forEach(btn => {
+    btn.classList.toggle('spinning', spinning);
+    btn.disabled = spinning;
+  });
+}
+
 // GAS から全件取得してローカルを上書き
-async function loadFromGAS() {
-  if (!navigator.onLine || !gasUrl()) return;
+async function loadFromGAS(manual = false) {
+  if (!navigator.onLine || !gasUrl()) {
+    if (manual) showToast('同期に失敗しました', 'error');
+    return;
+  }
+  setSyncSpinning(true);
   updateSyncIndicator('同期中…');
   try {
     const res = await fetch(gasUrl(), {
@@ -110,20 +122,24 @@ async function loadFromGAS() {
       records = data.records;
       saveStorage();
       updateBadge(getPending().length);
-      // 現在表示中のタブを再描画
       const activeTab = document.querySelector('.tab-content.active')?.id?.replace('tab-', '');
       if (activeTab === 'results') renderPendingList();
       if (activeTab === 'summary') renderSummary();
       if (activeTab === 'history') renderHistoryList();
       updateSyncIndicator('');
       console.log('[GAS] 全件取得:', records.length, '件');
+      if (manual) showToast('同期しました');
     } else {
       console.warn('[GAS] GET失敗:', data);
       updateSyncIndicator('');
+      if (manual) showToast('同期に失敗しました', 'error');
     }
   } catch (err) {
     console.error('[GAS] GET エラー:', err);
     updateSyncIndicator('');
+    if (manual) showToast('同期に失敗しました', 'error');
+  } finally {
+    setSyncSpinning(false);
   }
 }
 
@@ -1208,6 +1224,11 @@ function init() {
   document.getElementById('modal-close').addEventListener('click', closeEditModal);
   document.getElementById('modal-overlay').addEventListener('click', e => {
     if (e.target === document.getElementById('modal-overlay')) closeEditModal();
+  });
+
+  // 同期ボタン
+  document.querySelectorAll('.btn-sync').forEach(btn => {
+    btn.addEventListener('click', () => loadFromGAS(true));
   });
 
   // Online/offline
