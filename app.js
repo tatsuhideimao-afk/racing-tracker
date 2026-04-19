@@ -51,17 +51,34 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function fmtDate(s) {
-  if (!s) return '';
-  const [y,m,d] = s.split('-');
-  return `${y}/${m}/${d}`;
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const s = String(dateStr).split('T')[0];   // ISO datetime の T 以降を除去
+  const parts = s.split('-');
+  if (parts.length !== 3) return String(dateStr);
+  const result = parts[0] + '/' + parts[1] + '/' + parts[2];
+  console.log('日付変換前:', dateStr, '変換後:', result);
+  return result;
 }
 
-function dow(dateStr) {
+function getDayOfWeek(dateStr) {
   if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-');
-  return DAYS[new Date(+y, +m - 1, +d).getDay()];
+  const s = String(dateStr).split('T')[0];
+  const [y, m, d] = s.split('-').map(Number);
+  const result = DAYS[new Date(y, m - 1, d).getDay()]; // new Date(y,m,d) は常にローカル時刻
+  console.log('曜日変換前:', dateStr, '変換後:', result);
+  return result;
 }
+
+function getYearMonth(dateStr) {
+  if (!dateStr) return '';
+  const s = String(dateStr).split('T')[0];
+  return s.slice(0, 7); // 'YYYY-MM'
+}
+
+// 後方互換エイリアス（古い呼び出し箇所を一括置換するまでの橋渡し）
+const fmtDate = formatDate;
+const dow = getDayOfWeek;
 
 function fmtMoney(n) {
   if (n == null || isNaN(n)) return '—';
@@ -367,7 +384,7 @@ function renderPendingList() {
     <div class="record-card pending-card" data-id="${r.id}">
       <div class="record-main">
         <div class="record-meta">
-          <span class="record-date">${fmtDate(r.date)}（${dow(r.date)}）</span>
+          <span class="record-date">${formatDate(r.date)}（${getDayOfWeek(r.date)}）</span>
           <span class="record-sport">${esc(r.sport)}</span>
           <span class="record-venue">${esc(r.venue)}</span>
           <span class="badge-race">R${r.race}</span>
@@ -396,7 +413,7 @@ function populatePeriodSelect() {
   const extra = document.getElementById('period-extra');
 
   if (currentPeriod === 'select-month') {
-    const months = [...new Set(records.map(r => r.date?.slice(0,7)).filter(Boolean))].sort().reverse();
+    const months = [...new Set(records.map(r => getYearMonth(r.date)).filter(Boolean))].sort().reverse();
     sel.innerHTML = months.map(m => {
       const [y, mo] = m.split('-');
       return `<option value="${m}" ${m === selectedPeriodValue ? 'selected' : ''}>${y}年${parseInt(mo)}月</option>`;
@@ -405,7 +422,7 @@ function populatePeriodSelect() {
     if (selectedPeriodValue) sel.value = selectedPeriodValue;
     extra.style.display = months.length ? '' : 'none';
   } else if (currentPeriod === 'year') {
-    const years = [...new Set(records.map(r => r.date?.slice(0,4)).filter(Boolean))].sort().reverse();
+    const years = [...new Set(records.map(r => getYearMonth(r.date)?.slice(0,4)).filter(Boolean))].sort().reverse();
     sel.innerHTML = years.map(y => `<option value="${y}" ${y === selectedPeriodValue ? 'selected' : ''}>${y}年</option>`).join('');
     if (!selectedPeriodValue && years[0]) selectedPeriodValue = years[0];
     if (selectedPeriodValue) sel.value = selectedPeriodValue;
@@ -746,8 +763,9 @@ function renderSummary() {
   const dayStats = DAYS.map((_, i) => {
     const recs = filtered.filter(r => {
       if (!r.date) return false;
-      const [ry, rm, rd] = r.date.split('-');
-      return new Date(+ry, +rm - 1, +rd).getDay() === i;
+      const s = String(r.date).split('T')[0];
+      const [ry, rm, rd] = s.split('-').map(Number);
+      return new Date(ry, rm - 1, rd).getDay() === i;
     });
     const bet  = recs.reduce((s, r) => s + r.bet, 0);
     const pay  = recs.reduce((s, r) => s + r.payout, 0);
@@ -914,7 +932,7 @@ function renderMonthlyTrendChart(filtered) {
 
   const monthMap = {};
   filtered.forEach(r => {
-    const ym = r.date?.slice(0, 7);
+    const ym = getYearMonth(r.date);
     if (!ym) return;
     if (!monthMap[ym]) monthMap[ym] = { bet: 0, payout: 0 };
     monthMap[ym].bet    += r.bet;
@@ -1005,8 +1023,9 @@ function renderMovingAvgChart() {
 
   const rois   = completed.map(r => r.bet > 0 ? parseFloat((r.payout / r.bet * 100).toFixed(1)) : 0);
   const labels = completed.map(r => {
-    const [, m, d] = (r.date || '').split('-');
-    return m && d ? `${parseInt(m)}/${parseInt(d)}` : '';
+    const s = String(r.date || '').split('T')[0];
+    const parts = s.split('-');
+    return parts.length === 3 ? `${parseInt(parts[1])}/${parseInt(parts[2])}` : '';
   });
 
   const baselinePlugin = {
@@ -1065,7 +1084,7 @@ function renderMonthlyChart(recs, year) {
 
   const monthData = Array.from({ length: 12 }, (_, i) => {
     const ym  = `${year}-${String(i+1).padStart(2,'0')}`;
-    const mrs = recs.filter(r => r.date?.startsWith(ym));
+    const mrs = recs.filter(r => getYearMonth(r.date)?.startsWith(ym));
     const bet  = mrs.reduce((s, r) => s + r.bet, 0);
     const pay  = mrs.reduce((s, r) => s + r.payout, 0);
     return { roi: bet > 0 ? pay / bet * 100 : null, profit: pay - bet };
@@ -1174,7 +1193,7 @@ function renderHistoryList() {
       <div class="record-card" data-id="${r.id}">
         <div class="record-main">
           <div class="record-meta">
-            <span class="record-date">${fmtDate(r.date)}（${dow(r.date)}）</span>
+            <span class="record-date">${formatDate(r.date)}（${getDayOfWeek(r.date)}）</span>
             <span class="record-sport">${esc(r.sport)}</span>
             <span class="record-venue">${esc(r.venue)}</span>
             <span class="badge-race">R${r.race}</span>
@@ -1202,7 +1221,7 @@ function openPayoutModal(id) {
   if (!r) return;
   currentPayoutId = id;
   document.getElementById('payout-info').innerHTML =
-    `<span>${esc(r.sport)}</span><span>${fmtDate(r.date)}（${dow(r.date)}）</span>` +
+    `<span>${esc(r.sport)}</span><span>${formatDate(r.date)}（${getDayOfWeek(r.date)}）</span>` +
     `<span>${esc(r.venue)}　R${r.race}</span><span>掛け金：${fmtMoney(r.bet)}</span>`;
   document.getElementById('payout-input').value = '';
   document.getElementById('payout-overlay').style.display = 'flex';

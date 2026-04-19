@@ -27,11 +27,19 @@ function doGet(e) {
       return respond({ status: 'success', records: [] });
     }
 
+    const tz = Session.getScriptTimeZone();
     const records = data.slice(1).map(row => {
       const obj = {};
       HEADERS.forEach((h, i) => {
         let v = row[i];
-        if (v === '' || v === null || v === undefined) v = null;
+        if (v === '' || v === null || v === undefined) {
+          v = null;
+        } else if (v instanceof Date) {
+          // スプレッドシートの日付セルは Date オブジェクトとして返る。
+          // JSON.stringify すると UTC ISO 文字列になり JST で 1 日ずれるため
+          // スクリプトのタイムゾーンで YYYY-MM-DD 文字列に変換する。
+          v = Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+        }
         obj[h] = v;
       });
       if (obj.race   !== null) obj.race   = Number(obj.race);
