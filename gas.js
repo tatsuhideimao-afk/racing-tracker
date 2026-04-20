@@ -27,7 +27,6 @@ function doGet(e) {
       return respond({ status: 'success', records: [] });
     }
 
-    const tz = Session.getScriptTimeZone();
     const records = data.slice(1).map(row => {
       const obj = {};
       HEADERS.forEach((h, i) => {
@@ -36,9 +35,12 @@ function doGet(e) {
           v = null;
         } else if (v instanceof Date) {
           // スプレッドシートの日付セルは Date オブジェクトとして返る。
-          // JSON.stringify すると UTC ISO 文字列になり JST で 1 日ずれるため
-          // スクリプトのタイムゾーンで YYYY-MM-DD 文字列に変換する。
-          v = Utilities.formatDate(v, tz, 'yyyy-MM-dd');
+          // getFullYear/getMonth/getDate はスクリプトのローカルタイム（JST）で返るため
+          // UTC ISO 文字列化による 1 日ずれを防げる。
+          const y = v.getFullYear();
+          const m = String(v.getMonth() + 1).padStart(2, '0');
+          const d = String(v.getDate()).padStart(2, '0');
+          v = `${y}-${m}-${d}`;
         }
         obj[h] = v;
       });
