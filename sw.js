@@ -5,8 +5,8 @@ const STATIC_ASSETS = [
   './',
   './index.html',
   './style.css',
-  './app.js',
-  './config.js',
+  './app.js?v=20260420',
+  './config.js?v=20260420',
   './manifest.json',
   './icon.svg',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
