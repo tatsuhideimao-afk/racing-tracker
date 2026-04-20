@@ -51,10 +51,26 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// 任意の日付値（'YYYY-MM-DD' / UTC ISO 文字列）を JST の 'YYYY-MM-DD' に正規化
+function normalizeDate(dateStr) {
+  if (!dateStr) return '';
+  const s = String(dateStr);
+  if (s.includes('T') || s.includes('Z')) {
+    // UTC ISO 文字列 → new Date() でパースしローカル時刻（JST）で取得
+    // 例: "2026-04-18T15:00:00.000Z" → JST 2026-04-19 00:00 → "2026-04-19"
+    const dt = new Date(s);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return s.slice(0, 10); // 既に 'YYYY-MM-DD' 形式
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  const s = String(dateStr).split('T')[0];   // ISO datetime の T 以降を除去
-  const parts = s.split('-');
+  const norm = normalizeDate(dateStr);
+  const parts = norm.split('-');
   if (parts.length !== 3) return String(dateStr);
   const result = parts[0] + '/' + parts[1] + '/' + parts[2];
   console.log('日付変換前:', dateStr, '変換後:', result);
@@ -63,20 +79,19 @@ function formatDate(dateStr) {
 
 function getDayOfWeek(dateStr) {
   if (!dateStr) return '';
-  const s = String(dateStr).split('T')[0];
-  const [y, m, d] = s.split('-').map(Number);
-  const result = DAYS[new Date(y, m - 1, d).getDay()]; // new Date(y,m,d) は常にローカル時刻
+  const norm = normalizeDate(dateStr);
+  const [y, m, d] = norm.split('-').map(Number);
+  const result = DAYS[new Date(y, m - 1, d).getDay()];
   console.log('曜日変換前:', dateStr, '変換後:', result);
   return result;
 }
 
 function getYearMonth(dateStr) {
   if (!dateStr) return '';
-  const s = String(dateStr).split('T')[0];
-  return s.slice(0, 7); // 'YYYY-MM'
+  return normalizeDate(dateStr).slice(0, 7); // 'YYYY-MM'
 }
 
-// 後方互換エイリアス（古い呼び出し箇所を一括置換するまでの橋渡し）
+// 後方互換エイリアス
 const fmtDate = formatDate;
 const dow = getDayOfWeek;
 
@@ -144,6 +159,7 @@ async function loadFromGAS(manual = false) {
     const data = await res.json();
     if (data?.status === 'success' && Array.isArray(data.records)) {
       // GAS が buyType/member を返さない場合（列未追加）、ローカルの値を保持してマージ
+      // また date フィールドが UTC ISO 文字列で来ても JST の 'YYYY-MM-DD' に正規化する
       const localById = new Map(records.map(r => [r.id, r]));
       records = data.records.map(gasRec => {
         const local = localById.get(gasRec.id);
@@ -151,6 +167,8 @@ async function loadFromGAS(manual = false) {
           if (gasRec.buyType == null && local.buyType != null) gasRec.buyType = local.buyType;
           if (gasRec.member  == null && local.member  != null) gasRec.member  = local.member;
         }
+        // 日付を JST 'YYYY-MM-DD' に正規化（GAS が再デプロイ前でも対応）
+        if (gasRec.date) gasRec.date = normalizeDate(gasRec.date);
         return gasRec;
       });
       saveStorage();
@@ -296,11 +314,11 @@ function deleteRec(id) {
 function filterByPeriod(recs) {
   const today = todayStr();
   switch (currentPeriod) {
-    case 'today': return recs.filter(r => r.date === today);
-    case 'month': return recs.filter(r => r.date?.startsWith(today.slice(0,7)));
-    case 'select-month': return selectedPeriodValue ? recs.filter(r => r.date?.startsWith(selectedPeriodValue)) : recs;
-    case 'year':  return selectedPeriodValue ? recs.filter(r => r.date?.startsWith(selectedPeriodValue)) : recs;
-    default:      return recs;
+    case 'today':        return recs.filter(r => normalizeDate(r.date) === today);
+    case 'month':        return recs.filter(r => normalizeDate(r.date).startsWith(today.slice(0,7)));
+    case 'select-month': return selectedPeriodValue ? recs.filter(r => normalizeDate(r.date).startsWith(selectedPeriodValue)) : recs;
+    case 'year':         return selectedPeriodValue ? recs.filter(r => normalizeDate(r.date).startsWith(selectedPeriodValue)) : recs;
+    default:             return recs;
   }
 }
 
