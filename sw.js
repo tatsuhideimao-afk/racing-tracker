@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'racing-tracker-v1';
+const CACHE_NAME = 'racing-tracker-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',
