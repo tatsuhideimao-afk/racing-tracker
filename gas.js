@@ -10,11 +10,24 @@
  *     アクセスできるユーザー: 全員
  *  4. デプロイURLを config.js の GAS_URL に設定
  *
- * レスポンス形式: { status: 'success' } または { status: 'error', message: '...' }
+ * スキーマ（列順）:
+ *   id, date, sport, venue, race, invest, recover, memo,
+ *   pending, createdAt, buyType, member, noriMembers,
+ *   predictor, victoryComment, updatedAt
  */
 
 const SHEET_NAME = 'records';
-const HEADERS = ['id', 'date', 'sport', 'venue', 'race', 'bet', 'payout', 'memo', 'createdAt', 'buyType', 'noriMembers', 'member', 'predictor', 'updatedAt'];
+const HEADERS = [
+  'id', 'date', 'sport', 'venue', 'race',
+  'invest', 'recover', 'memo', 'pending', 'createdAt',
+  'buyType', 'member', 'noriMembers', 'predictor',
+  'victoryComment', 'updatedAt'
+];
+
+// ── CORS ヘルパー ─────────────────────────────────────────
+function addCors(output) {
+  return output;  // GAS の ContentService は自動で CORS 対応
+}
 
 // ── GET: 全レコード取得 ──────────────────────────────────
 function doGet(e) {
@@ -34,9 +47,7 @@ function doGet(e) {
         if (v === '' || v === null || v === undefined) {
           v = null;
         } else if (v instanceof Date) {
-          // スプレッドシートの日付セルは Date オブジェクトとして返る。
-          // getFullYear/getMonth/getDate はスクリプトのローカルタイム（JST）で返るため
-          // UTC ISO 文字列化による 1 日ずれを防げる。
+          // JST で YYYY-MM-DD に変換
           const y = v.getFullYear();
           const m = String(v.getMonth() + 1).padStart(2, '0');
           const d = String(v.getDate()).padStart(2, '0');
@@ -44,9 +55,18 @@ function doGet(e) {
         }
         obj[h] = v;
       });
-      if (obj.race   !== null) obj.race   = Number(obj.race);
-      if (obj.bet    !== null) obj.bet    = Number(obj.bet);
-      if (obj.payout !== null) obj.payout = Number(obj.payout);
+
+      // 数値変換
+      if (obj.race !== null && !isNaN(Number(obj.race)) && String(obj.race).match(/^\d+$/)) {
+        obj.race = Number(obj.race);
+      }
+      if (obj.invest  !== null) obj.invest  = Number(obj.invest);
+      if (obj.recover !== null) obj.recover = Number(obj.recover);
+
+      // フロントエンド互換: bet / payout エイリアス
+      obj.bet    = obj.invest;
+      obj.payout = obj.recover;
+
       return obj;
     }).filter(r => r.id);
 
@@ -68,7 +88,12 @@ function doPost(e) {
     ensureHeaders(sheet);
 
     if (action === 'add') {
-      sheet.appendRow(HEADERS.map(h => record[h] ?? ''));
+      // pending フラグを自動設定
+      const row = HEADERS.map(h => {
+        if (h === 'pending') return record.payout == null ? 'TRUE' : 'FALSE';
+        return record[h] ?? '';
+      });
+      sheet.appendRow(row);
       return respond({ status: 'success' });
     }
 
@@ -76,7 +101,9 @@ function doPost(e) {
       const rowIdx = findRowById(sheet, record.id);
       if (rowIdx < 0) return respond({ status: 'error', message: 'Record not found: ' + record.id });
       HEADERS.forEach((h, i) => {
-        sheet.getRange(rowIdx, i + 1).setValue(record[h] ?? '');
+        let val = record[h] ?? '';
+        if (h === 'pending') val = record.payout == null ? 'TRUE' : 'FALSE';
+        sheet.getRange(rowIdx, i + 1).setValue(val);
       });
       return respond({ status: 'success' });
     }

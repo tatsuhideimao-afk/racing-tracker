@@ -24,8 +24,7 @@
         <div class="sync-indicator" id="sync-indicator"></div>
         <button class="btn-sync" aria-label="同期">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"/>
-            <polyline points="1 20 1 14 7 14"/>
+            <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
         </button>
@@ -88,10 +87,21 @@
         <div class="step-section-label">競技</div>
         <div class="sport-grid" id="step-sport-grid"></div>
 
+        <!-- 通常競技: 場名グリッド -->
         <div id="step-venue-section" style="display:none">
           <div class="step-section-label">場名</div>
           <div class="venue-grid" id="step-venue-grid"></div>
         </div>
+
+        <!-- パチンコ・スロット: 店舗名テキスト入力 -->
+        <div id="step-storename-section" style="display:none">
+          <div class="step-section-label">店舗名</div>
+          <div class="form-group">
+            <input type="text" id="step-storename" placeholder="例：ガイア新宿店">
+          </div>
+        </div>
+
+        <!-- その他: 場名不要（何も表示しない） -->
 
         <button class="btn-primary btn-full" id="step2-next" disabled>次へ</button>
       </div>
@@ -102,10 +112,19 @@
           <label for="step-date">日付</label>
           <input type="date" id="step-date">
         </div>
-        <div class="form-group">
+
+        <!-- 通常競技: レース番号グリッド -->
+        <div class="form-group" id="step-race-section">
           <label>レース番号</label>
           <div class="race-grid" id="step-race-grid"></div>
         </div>
+
+        <!-- パチンコ・スロット: 機種名テキスト入力 -->
+        <div class="form-group" id="step-machine-section" style="display:none">
+          <label for="step-machine">機種名 <span class="label-note">（任意）</span></label>
+          <input type="text" id="step-machine" placeholder="例：北斗の拳">
+        </div>
+
         <div class="form-group">
           <label for="step-bet">掛け金</label>
           <div class="input-row">
@@ -146,16 +165,13 @@
       <h1>結果入力</h1>
       <button class="btn-sync" aria-label="同期">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="23 4 23 10 17 10"/>
-          <polyline points="1 20 1 14 7 14"/>
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
       </button>
     </header>
     <main class="page-main">
-      <div id="pending-empty" class="empty-state" style="display:none">
-        結果待ちのレースはありません
-      </div>
+      <div id="pending-empty" class="empty-state" style="display:none">結果待ちのレースはありません</div>
       <div id="pending-list"></div>
     </main>
   </div>
@@ -166,8 +182,7 @@
       <h1>集計</h1>
       <button class="btn-sync" aria-label="同期">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="23 4 23 10 17 10"/>
-          <polyline points="1 20 1 14 7 14"/>
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
       </button>
@@ -195,76 +210,83 @@
 
       <!-- ── ノリタブ ── -->
       <div id="toptab-nori">
-        <div class="step-section-label" style="margin-bottom:8px">視点メンバー</div>
-        <div class="member-selector" id="nori-view-member-selector"></div>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">個人負担</div>
-            <div class="kpi-value" id="nori-kpi-bet">—</div>
+        <!-- サブタブ: [貢献度] [大迫] [今伊] [今尾] [藤原] -->
+        <div class="sport-tab-bar" id="nori-sub-tab-bar"></div>
+
+        <!-- 貢献度パネル（JS で書き換え） -->
+        <div id="nori-panel-koken"></div>
+
+        <!-- メンバーKPIパネル -->
+        <div id="nori-panel-member" style="display:none">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">個人負担</div>
+              <div class="kpi-value" id="nori-kpi-bet">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">個人回収</div>
+              <div class="kpi-value" id="nori-kpi-payout">—</div>
+            </div>
+            <div class="kpi-card kpi-wide">
+              <div class="kpi-label">個人収支</div>
+              <div class="kpi-value" id="nori-kpi-profit">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">ROI</div>
+              <div class="kpi-value" id="nori-kpi-roi">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">的中率</div>
+              <div class="kpi-value" id="nori-kpi-hitrate">—</div>
+            </div>
+            <div class="kpi-card kpi-wide">
+              <div class="kpi-label">レース数</div>
+              <div class="kpi-value" id="nori-kpi-count">—</div>
+            </div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-label">個人回収</div>
-            <div class="kpi-value" id="nori-kpi-payout">—</div>
-          </div>
-          <div class="kpi-card kpi-wide">
-            <div class="kpi-label">個人収支</div>
-            <div class="kpi-value" id="nori-kpi-profit">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">ROI</div>
-            <div class="kpi-value" id="nori-kpi-roi">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">的中率</div>
-            <div class="kpi-value" id="nori-kpi-hitrate">—</div>
-          </div>
-          <div class="kpi-card kpi-wide">
-            <div class="kpi-label">レース数</div>
-            <div class="kpi-value" id="nori-kpi-count">—</div>
-          </div>
-        </div>
-        <div class="chart-section">
-          <div class="chart-title">予想者貢献度（ROI高い順）</div>
-          <div class="chart-wrap chart-sport-roi" id="wrap-predictor"><canvas id="chart-predictor"></canvas></div>
         </div>
       </div>
 
       <!-- ── 個人タブ ── -->
       <div id="toptab-individual" style="display:none">
-        <div class="member-selector" id="individual-member-selector"></div>
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">投入合計</div>
-            <div class="kpi-value" id="ind-kpi-bet">—</div>
+        <!-- サブタブ: [ランキング] [大迫] [今伊] [今尾] [藤原] -->
+        <div class="sport-tab-bar" id="ind-sub-tab-bar"></div>
+
+        <!-- ランキングパネル（JS で書き換え） -->
+        <div id="ind-panel-ranking"></div>
+
+        <!-- メンバーKPIパネル -->
+        <div id="ind-panel-member" style="display:none">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-label">投入合計</div>
+              <div class="kpi-value" id="ind-kpi-bet">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">回収合計</div>
+              <div class="kpi-value" id="ind-kpi-payout">—</div>
+            </div>
+            <div class="kpi-card kpi-wide">
+              <div class="kpi-label">収支</div>
+              <div class="kpi-value" id="ind-kpi-profit">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">ROI</div>
+              <div class="kpi-value" id="ind-kpi-roi">—</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-label">的中率</div>
+              <div class="kpi-value" id="ind-kpi-hitrate">—</div>
+            </div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-label">回収合計</div>
-            <div class="kpi-value" id="ind-kpi-payout">—</div>
+          <div class="chart-section" id="section-ind-sport" style="display:none">
+            <div class="chart-title">競技別収支</div>
+            <div class="chart-wrap chart-sport-roi" id="wrap-ind-sport"><canvas id="chart-ind-sport"></canvas></div>
           </div>
-          <div class="kpi-card kpi-wide">
-            <div class="kpi-label">収支</div>
-            <div class="kpi-value" id="ind-kpi-profit">—</div>
+          <div class="chart-section" id="section-ind-venue" style="display:none">
+            <div class="chart-title">場別ROI（競艇）</div>
+            <div class="chart-wrap chart-tall" id="wrap-ind-venue"><canvas id="chart-ind-venue"></canvas></div>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-label">ROI</div>
-            <div class="kpi-value" id="ind-kpi-roi">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">的中率</div>
-            <div class="kpi-value" id="ind-kpi-hitrate">—</div>
-          </div>
-        </div>
-        <div class="chart-section" id="section-ind-sport" style="display:none">
-          <div class="chart-title">競技別収支</div>
-          <div class="chart-wrap chart-sport-roi" id="wrap-ind-sport"><canvas id="chart-ind-sport"></canvas></div>
-        </div>
-        <div class="chart-section" id="section-ind-venue" style="display:none">
-          <div class="chart-title">場別ROI（競艇）</div>
-          <div class="chart-wrap chart-tall" id="wrap-ind-venue"><canvas id="chart-ind-venue"></canvas></div>
-        </div>
-        <div class="chart-section">
-          <div class="chart-title">4人回収率ランキング</div>
-          <div class="chart-wrap chart-sport-roi" id="wrap-member-rank"><canvas id="chart-member-rank"></canvas></div>
         </div>
       </div>
 
@@ -272,29 +294,13 @@
       <div id="toptab-overall" style="display:none">
         <div class="sport-tab-bar" id="overall-sport-tab-bar"></div>
         <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-label">投入合計</div>
-            <div class="kpi-value" id="ovr-kpi-bet">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">回収合計</div>
-            <div class="kpi-value" id="ovr-kpi-payout">—</div>
-          </div>
-          <div class="kpi-card kpi-wide">
-            <div class="kpi-label">収支</div>
-            <div class="kpi-value" id="ovr-kpi-profit">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">ROI</div>
-            <div class="kpi-value" id="ovr-kpi-roi">—</div>
-          </div>
-          <div class="kpi-card">
-            <div class="kpi-label">的中率</div>
-            <div class="kpi-value" id="ovr-kpi-hitrate">—</div>
-          </div>
+          <div class="kpi-card"><div class="kpi-label">投入合計</div><div class="kpi-value" id="ovr-kpi-bet">—</div></div>
+          <div class="kpi-card"><div class="kpi-label">回収合計</div><div class="kpi-value" id="ovr-kpi-payout">—</div></div>
+          <div class="kpi-card kpi-wide"><div class="kpi-label">収支</div><div class="kpi-value" id="ovr-kpi-profit">—</div></div>
+          <div class="kpi-card"><div class="kpi-label">ROI</div><div class="kpi-value" id="ovr-kpi-roi">—</div></div>
+          <div class="kpi-card"><div class="kpi-label">的中率</div><div class="kpi-value" id="ovr-kpi-hitrate">—</div></div>
         </div>
 
-        <!-- 全体（ノリ全件）: 3 charts -->
         <div id="section-ovr-all">
           <div class="chart-section">
             <div class="chart-title">競技別ROI比較</div>
@@ -310,7 +316,6 @@
           </div>
         </div>
 
-        <!-- 年度別: 月別収支チャート -->
         <div id="section-ovr-yearly" style="display:none">
           <div class="chart-section">
             <div class="chart-title">月別収支</div>
@@ -318,17 +323,16 @@
           </div>
         </div>
 
-        <!-- 各競技: 場別ROI・レース番号別ROI・曜日別ROI -->
         <div id="section-ovr-sport" style="display:none">
           <div class="chart-section">
             <div class="chart-title">場別ROI</div>
             <div class="chart-wrap chart-tall" id="wrap-ovr-venue"><canvas id="chart-ovr-venue"></canvas></div>
           </div>
-          <div class="chart-section">
+          <div id="section-ovr-race" class="chart-section">
             <div class="chart-title">レース番号別ROI</div>
             <div class="chart-wrap" id="wrap-ovr-race"><canvas id="chart-ovr-race"></canvas></div>
           </div>
-          <div class="chart-section">
+          <div id="section-ovr-day" class="chart-section">
             <div class="chart-title">曜日別ROI</div>
             <div class="chart-wrap"><canvas id="chart-ovr-day"></canvas></div>
           </div>
@@ -344,16 +348,17 @@
       <h1>履歴</h1>
       <button class="btn-sync" aria-label="同期">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="23 4 23 10 17 10"/>
-          <polyline points="1 20 1 14 7 14"/>
+          <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
       </button>
     </header>
     <main class="page-main">
-      <div id="history-empty" class="empty-state" style="display:none">
-        記録がありません
+      <!-- フィルターチップ -->
+      <div class="history-filter-wrap">
+        <div class="history-filter-bar" id="history-filter-bar"></div>
       </div>
+      <div id="history-empty" class="empty-state" style="display:none">記録がありません</div>
       <div id="history-list"></div>
     </main>
   </div>
@@ -379,13 +384,15 @@
   </button>
   <button class="nav-btn" data-tab="summary">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+      <line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
     </svg>
     <span>集計</span>
   </button>
   <button class="nav-btn" data-tab="history">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
     </svg>
     <span>履歴</span>
   </button>
@@ -412,6 +419,10 @@
         <option value="今尾">今尾</option>
         <option value="藤原">藤原</option>
       </select>
+    </div>
+    <div class="form-group" id="victory-comment-row" style="display:none">
+      <label for="victory-comment-input">🎉 勝利コメント <span class="label-note">（任意）</span></label>
+      <input type="text" id="victory-comment-input" placeholder="例：本命ワンツー！">
     </div>
     <div class="modal-actions">
       <button class="btn-primary" id="payout-save">確定</button>
@@ -449,14 +460,30 @@
       <label for="modal-sport">競技</label>
       <select id="modal-sport"></select>
     </div>
-    <div class="form-group">
+    <!-- 場名: 通常競技 -->
+    <div class="form-group" id="modal-venue-row-select">
       <label for="modal-venue">場名</label>
       <select id="modal-venue"></select>
     </div>
-    <div class="form-group">
+    <!-- 場名: パチンコ・スロット（テキスト） -->
+    <div class="form-group" id="modal-venue-row-text" style="display:none">
+      <label for="modal-venue-text">店舗名</label>
+      <input type="text" id="modal-venue-text" placeholder="例：ガイア新宿店">
+    </div>
+    <!-- 場名: その他（なし） -->
+    <div id="modal-venue-row-none" style="display:none"></div>
+    <!-- レース: 通常競技 -->
+    <div class="form-group" id="modal-race-row-select">
       <label for="modal-race">レース番号</label>
       <select id="modal-race"></select>
     </div>
+    <!-- レース: パチンコ・スロット（テキスト） -->
+    <div class="form-group" id="modal-race-row-text" style="display:none">
+      <label for="modal-race-text">機種名</label>
+      <input type="text" id="modal-race-text" placeholder="例：北斗の拳">
+    </div>
+    <!-- レース: その他（なし） -->
+    <div id="modal-race-row-none" style="display:none"></div>
     <div class="form-group">
       <label for="modal-bet">掛け金（円）</label>
       <div class="input-row">
@@ -475,6 +502,10 @@
       <label for="modal-memo">メモ</label>
       <input type="text" id="modal-memo">
     </div>
+    <div class="form-group">
+      <label for="modal-victory-comment">🎉 勝利コメント <span class="label-note">（任意）</span></label>
+      <input type="text" id="modal-victory-comment" placeholder="例：本命ワンツー！">
+    </div>
     <div class="modal-actions">
       <button class="btn-primary" id="modal-save">保存</button>
       <button class="btn-danger" id="modal-delete">削除</button>
@@ -487,7 +518,7 @@
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="config.js?v=20260424"></script>
-<script src="app.js?v=20260424"></script>
+<script src="config.js?v=20260425"></script>
+<script src="app.js?v=20260425"></script>
 </body>
 </html>
