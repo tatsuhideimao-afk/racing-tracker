@@ -534,3 +534,257 @@ body {
 .member-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
 
 ::-webkit-scrollbar { width: 0; height: 0; }
+
+/* ── Top Tab Bar (ノリ / 個人 / 全体) ── */
+.top-tab-bar {
+  display: flex;
+  margin-bottom: 14px;
+  border-bottom: 1.5px solid var(--border);
+}
+.top-tab {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1.5px;
+  transition: color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.top-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* ── Step Form ── */
+.step-progress-wrap {
+  margin-bottom: 18px;
+}
+.step-progress-bg {
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  margin-bottom: 8px;
+}
+.step-progress-fill {
+  height: 4px;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.step-labels {
+  display: flex;
+  justify-content: space-between;
+}
+.step-label {
+  font-size: 11px;
+  color: var(--text-light);
+  flex: 1;
+  text-align: center;
+  transition: color 0.2s;
+}
+.step-label.active { color: var(--primary); font-weight: 600; }
+
+.btn-step-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  margin-bottom: 14px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-step-back:active { color: var(--primary); }
+
+.step-panel { }
+
+.step-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+
+/* ── Buytype Toggle ── */
+.buytype-toggle {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.buytype-btn {
+  flex: 1;
+  padding: 16px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.buytype-btn.active {
+  border-color: var(--primary);
+  background: var(--primary-lt);
+  color: var(--primary);
+}
+
+/* ── Member Grid (step form) ── */
+.member-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.member-select-btn {
+  padding: 10px 20px;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.member-select-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.member-select-btn.wide-btn {
+  flex: 1 1 100%;
+  text-align: center;
+}
+
+/* ── Sport Grid (step form) ── */
+.sport-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.sport-grid-btn {
+  padding: 14px 8px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.sport-grid-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* ── Venue Grid (step form) ── */
+.venue-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.venue-btn {
+  padding: 10px 4px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.venue-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* ── Race Grid (step form) ── */
+.race-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.race-btn {
+  padding: 11px 4px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+  transition: all 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.race-btn.active {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+/* ── Confirm Table (step 4) ── */
+.confirm-table {
+  background: var(--surface);
+  border: var(--bw) solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.confirm-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 11px 14px;
+  border-bottom: var(--bw) solid var(--border);
+}
+.confirm-row:last-child { border-bottom: none; }
+.confirm-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 80px;
+}
+.confirm-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+/* ── Confirm Actions (step 4) ── */
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.confirm-actions .btn-secondary { flex: 1; }
+.confirm-actions .btn-primary   { flex: 2; }

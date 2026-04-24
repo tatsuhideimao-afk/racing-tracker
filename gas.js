@@ -14,7 +14,7 @@
  */
 
 const SHEET_NAME = 'records';
-const HEADERS = ['id', 'date', 'sport', 'venue', 'race', 'bet', 'payout', 'memo', 'createdAt', 'buyType', 'member', 'updatedAt'];
+const HEADERS = ['id', 'date', 'sport', 'venue', 'race', 'bet', 'payout', 'memo', 'createdAt', 'buyType', 'noriMembers', 'member', 'predictor', 'updatedAt'];
 
 // ── GET: 全レコード取得 ──────────────────────────────────
 function doGet(e) {

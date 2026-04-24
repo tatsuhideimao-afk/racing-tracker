@@ -32,64 +32,111 @@
       </div>
     </header>
     <main class="page-main">
-      <div class="form-group">
-        <label for="input-date">日付</label>
-        <input type="date" id="input-date">
-      </div>
-      <div class="form-group">
-        <label for="input-buytype">種別</label>
-        <select id="input-buytype">
-          <option value="ノリ">ノリ</option>
-          <option value="単舞">単舞</option>
-        </select>
-      </div>
-      <div class="form-group" id="input-member-row" style="display:none">
-        <label for="input-member">メンバー</label>
-        <select id="input-member">
-          <option value="">選択してください</option>
-          <option value="大迫">大迫</option>
-          <option value="今伊">今伊</option>
-          <option value="今尾">今尾</option>
-          <option value="藤原">藤原</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="input-sport">競技</label>
-        <select id="input-sport">
-          <option value="">選択してください</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="input-venue">場名</label>
-        <select id="input-venue" disabled>
-          <option value="">競技を先に選択</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="input-race">レース番号</label>
-        <select id="input-race">
-          <option value="">選択してください</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label for="input-bet">掛け金</label>
-        <div class="input-row">
-          <input type="number" id="input-bet" placeholder="例：1000" min="1" step="100" inputmode="numeric">
-          <span class="unit">円</span>
+
+      <!-- プログレスバー -->
+      <div class="step-progress-wrap">
+        <div class="step-progress-bg">
+          <div class="step-progress-fill" id="step-progress-fill" style="width:25%"></div>
+        </div>
+        <div class="step-labels">
+          <span class="step-label active" id="slabel-1">種別</span>
+          <span class="step-label" id="slabel-2">場所</span>
+          <span class="step-label" id="slabel-3">詳細</span>
+          <span class="step-label" id="slabel-4">確認</span>
         </div>
       </div>
-      <div class="form-group">
-        <label for="input-payout">払戻金 <span class="label-note">（後から入力可）</span></label>
-        <div class="input-row">
-          <input type="number" id="input-payout" placeholder="0" min="0" step="100" inputmode="numeric">
-          <span class="unit">円</span>
+
+      <!-- 戻るボタン -->
+      <button class="btn-step-back" id="step-back" style="display:none">← 戻る</button>
+
+      <!-- ── STEP 1: 種別・メンバー ── -->
+      <div class="step-panel" id="step-panel-1">
+        <div class="step-section-label">種別</div>
+        <div class="buytype-toggle">
+          <button class="buytype-btn active" data-buytype="ノリ">ノリ</button>
+          <button class="buytype-btn" data-buytype="単騎">単騎</button>
+        </div>
+
+        <!-- ノリ: 複数選択 -->
+        <div id="nori-member-section">
+          <div class="step-section-label">参加メンバー <span class="label-note">（複数選択可）</span></div>
+          <div class="member-grid" id="nori-member-grid">
+            <button class="member-select-btn wide-btn active" data-member="全員">全員</button>
+            <button class="member-select-btn active" data-member="大迫">大迫</button>
+            <button class="member-select-btn active" data-member="今伊">今伊</button>
+            <button class="member-select-btn active" data-member="今尾">今尾</button>
+            <button class="member-select-btn active" data-member="藤原">藤原</button>
+          </div>
+        </div>
+
+        <!-- 単騎: 単一選択 -->
+        <div id="tanki-member-section" style="display:none">
+          <div class="step-section-label">メンバー</div>
+          <div class="member-grid" id="tanki-member-grid">
+            <button class="member-select-btn" data-member="大迫">大迫</button>
+            <button class="member-select-btn" data-member="今伊">今伊</button>
+            <button class="member-select-btn" data-member="今尾">今尾</button>
+            <button class="member-select-btn" data-member="藤原">藤原</button>
+          </div>
+        </div>
+
+        <button class="btn-primary btn-full" id="step1-next">次へ</button>
+      </div>
+
+      <!-- ── STEP 2: 競技・場名 ── -->
+      <div class="step-panel" id="step-panel-2" style="display:none">
+        <div class="step-section-label">競技</div>
+        <div class="sport-grid" id="step-sport-grid"></div>
+
+        <div id="step-venue-section" style="display:none">
+          <div class="step-section-label">場名</div>
+          <div class="venue-grid" id="step-venue-grid"></div>
+        </div>
+
+        <button class="btn-primary btn-full" id="step2-next" disabled>次へ</button>
+      </div>
+
+      <!-- ── STEP 3: 日付・レース・掛け金・メモ ── -->
+      <div class="step-panel" id="step-panel-3" style="display:none">
+        <div class="form-group">
+          <label for="step-date">日付</label>
+          <input type="date" id="step-date">
+        </div>
+        <div class="form-group">
+          <label>レース番号</label>
+          <div class="race-grid" id="step-race-grid"></div>
+        </div>
+        <div class="form-group">
+          <label for="step-bet">掛け金</label>
+          <div class="input-row">
+            <input type="number" id="step-bet" placeholder="例：1000" min="1" step="100" inputmode="numeric">
+            <span class="unit">円</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="step-memo">メモ <span class="label-note">（任意）</span></label>
+          <input type="text" id="step-memo" placeholder="例：馬連 3-7 BOX">
+        </div>
+        <button class="btn-primary btn-full" id="step3-next">次へ</button>
+      </div>
+
+      <!-- ── STEP 4: 確認・登録 ── -->
+      <div class="step-panel" id="step-panel-4" style="display:none">
+        <div class="step-section-label">登録内容の確認</div>
+        <div class="confirm-table" id="confirm-table"></div>
+        <div class="form-group" style="margin-top:16px">
+          <label for="step-payout">払戻金 <span class="label-note">（後から入力可）</span></label>
+          <div class="input-row">
+            <input type="number" id="step-payout" placeholder="0" min="0" step="100" inputmode="numeric">
+            <span class="unit">円</span>
+          </div>
+        </div>
+        <div class="confirm-actions">
+          <button class="btn-secondary" id="step-modify">修正する</button>
+          <button class="btn-primary" id="step-register">登録する</button>
         </div>
       </div>
-      <div class="form-group">
-        <label for="input-memo">メモ <span class="label-note">（任意）</span></label>
-        <input type="text" id="input-memo" placeholder="例：馬連 3-7 BOX">
-      </div>
-      <button class="btn-primary btn-full" id="btn-register">登録する</button>
+
     </main>
   </div>
 
@@ -126,6 +173,7 @@
       </button>
     </header>
     <main class="page-main">
+
       <!-- 期間フィルター -->
       <div class="filter-bar" id="period-filter-bar">
         <button class="filter-btn active" data-period="month">今月</button>
@@ -138,93 +186,151 @@
         <select id="period-select"></select>
       </div>
 
-      <!-- 競技タブ -->
-      <div class="sport-tab-bar" id="sport-tab-bar">
-        <!-- JS で生成 -->
+      <!-- トップタブ: ノリ / 個人 / 全体 -->
+      <div class="top-tab-bar">
+        <button class="top-tab active" data-toptab="nori">ノリ</button>
+        <button class="top-tab" data-toptab="individual">個人</button>
+        <button class="top-tab" data-toptab="overall">全体</button>
       </div>
 
-      <!-- メンバー選択（個人別タブ） -->
-      <div id="section-member-select" style="display:none">
-        <div id="member-selector" class="member-selector"></div>
-      </div>
-
-      <!-- KPI -->
-      <div class="kpi-grid">
-        <div class="kpi-card">
-          <div class="kpi-label">投入合計</div>
-          <div class="kpi-value" id="kpi-bet">—</div>
+      <!-- ── ノリタブ ── -->
+      <div id="toptab-nori">
+        <div class="step-section-label" style="margin-bottom:8px">視点メンバー</div>
+        <div class="member-selector" id="nori-view-member-selector"></div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">個人負担</div>
+            <div class="kpi-value" id="nori-kpi-bet">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">個人回収</div>
+            <div class="kpi-value" id="nori-kpi-payout">—</div>
+          </div>
+          <div class="kpi-card kpi-wide">
+            <div class="kpi-label">個人収支</div>
+            <div class="kpi-value" id="nori-kpi-profit">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROI</div>
+            <div class="kpi-value" id="nori-kpi-roi">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">レース数</div>
+            <div class="kpi-value" id="nori-kpi-count">—</div>
+          </div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-label">回収合計</div>
-          <div class="kpi-value" id="kpi-payout">—</div>
-        </div>
-        <div class="kpi-card kpi-wide">
-          <div class="kpi-label">収支</div>
-          <div class="kpi-value" id="kpi-profit">—</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">ROI</div>
-          <div class="kpi-value" id="kpi-roi">—</div>
-        </div>
-        <div class="kpi-card">
-          <div class="kpi-label">的中率</div>
-          <div class="kpi-value" id="kpi-hitrate">—</div>
+        <div class="chart-section">
+          <div class="chart-title">予想者貢献度（ROI高い順）</div>
+          <div class="chart-wrap chart-sport-roi" id="wrap-predictor"><canvas id="chart-predictor"></canvas></div>
         </div>
       </div>
 
-      <!-- 競技別収支（個人別タブ：今伊以外） -->
-      <div class="chart-section" id="section-individual-sport" style="display:none">
-        <div class="chart-title">競技別収支</div>
-        <div class="chart-wrap chart-sport-roi" id="wrap-individual-sport"><canvas id="chart-individual-sport"></canvas></div>
+      <!-- ── 個人タブ ── -->
+      <div id="toptab-individual" style="display:none">
+        <div class="member-selector" id="individual-member-selector"></div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">投入合計</div>
+            <div class="kpi-value" id="ind-kpi-bet">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">回収合計</div>
+            <div class="kpi-value" id="ind-kpi-payout">—</div>
+          </div>
+          <div class="kpi-card kpi-wide">
+            <div class="kpi-label">収支</div>
+            <div class="kpi-value" id="ind-kpi-profit">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROI</div>
+            <div class="kpi-value" id="ind-kpi-roi">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">的中率</div>
+            <div class="kpi-value" id="ind-kpi-hitrate">—</div>
+          </div>
+        </div>
+        <div class="chart-section" id="section-ind-sport" style="display:none">
+          <div class="chart-title">競技別収支</div>
+          <div class="chart-wrap chart-sport-roi" id="wrap-ind-sport"><canvas id="chart-ind-sport"></canvas></div>
+        </div>
+        <div class="chart-section" id="section-ind-venue" style="display:none">
+          <div class="chart-title">場別ROI（競艇）</div>
+          <div class="chart-wrap chart-tall" id="wrap-ind-venue"><canvas id="chart-ind-venue"></canvas></div>
+        </div>
+        <div class="chart-section">
+          <div class="chart-title">4人回収率ランキング</div>
+          <div class="chart-wrap chart-sport-roi" id="wrap-member-rank"><canvas id="chart-member-rank"></canvas></div>
+        </div>
       </div>
 
-      <!-- 場別ROI（個人別タブ：今伊） -->
-      <div class="chart-section" id="section-individual-venue" style="display:none">
-        <div class="chart-title">場別ROI（競艇）</div>
-        <div class="chart-wrap chart-tall" id="wrap-individual-venue"><canvas id="chart-individual-venue"></canvas></div>
+      <!-- ── 全体タブ ── -->
+      <div id="toptab-overall" style="display:none">
+        <div class="sport-tab-bar" id="overall-sport-tab-bar"></div>
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">投入合計</div>
+            <div class="kpi-value" id="ovr-kpi-bet">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">回収合計</div>
+            <div class="kpi-value" id="ovr-kpi-payout">—</div>
+          </div>
+          <div class="kpi-card kpi-wide">
+            <div class="kpi-label">収支</div>
+            <div class="kpi-value" id="ovr-kpi-profit">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">ROI</div>
+            <div class="kpi-value" id="ovr-kpi-roi">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">的中率</div>
+            <div class="kpi-value" id="ovr-kpi-hitrate">—</div>
+          </div>
+        </div>
+
+        <!-- 全体（ノリ全件）: 3 charts -->
+        <div id="section-ovr-all">
+          <div class="chart-section">
+            <div class="chart-title">競技別ROI比較</div>
+            <div class="chart-wrap chart-sport-roi" id="wrap-sport-roi"><canvas id="chart-sport-roi"></canvas></div>
+          </div>
+          <div class="chart-section">
+            <div class="chart-title">月別収支推移</div>
+            <div class="chart-wrap chart-monthly" id="wrap-monthly-trend"><canvas id="chart-monthly-trend"></canvas></div>
+          </div>
+          <div class="chart-section">
+            <div class="chart-title">回収率移動平均（直近30件）</div>
+            <div class="chart-wrap"><canvas id="chart-moving-avg"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 年度別: 月別収支チャート -->
+        <div id="section-ovr-yearly" style="display:none">
+          <div class="chart-section">
+            <div class="chart-title">月別収支</div>
+            <div class="chart-wrap chart-monthly"><canvas id="chart-monthly"></canvas></div>
+          </div>
+        </div>
+
+        <!-- 各競技: 場別ROI・レース番号別ROI・曜日別ROI -->
+        <div id="section-ovr-sport" style="display:none">
+          <div class="chart-section">
+            <div class="chart-title">場別ROI</div>
+            <div class="chart-wrap chart-tall" id="wrap-ovr-venue"><canvas id="chart-ovr-venue"></canvas></div>
+          </div>
+          <div class="chart-section">
+            <div class="chart-title">レース番号別ROI</div>
+            <div class="chart-wrap" id="wrap-ovr-race"><canvas id="chart-ovr-race"></canvas></div>
+          </div>
+          <div class="chart-section">
+            <div class="chart-title">曜日別ROI</div>
+            <div class="chart-wrap"><canvas id="chart-ovr-day"></canvas></div>
+          </div>
+        </div>
       </div>
 
-      <!-- 月別収支（年度別のみ） -->
-      <div class="chart-section" id="section-monthly" style="display:none">
-        <div class="chart-title">月別収支</div>
-        <div class="chart-wrap chart-monthly"><canvas id="chart-monthly"></canvas></div>
-      </div>
-
-      <!-- 競技別ROI比較（全体タブ専用） -->
-      <div class="chart-section" id="section-sport-roi" style="display:none">
-        <div class="chart-title">競技別ROI比較</div>
-        <div class="chart-wrap chart-sport-roi" id="wrap-sport-roi"><canvas id="chart-sport-roi"></canvas></div>
-      </div>
-
-      <!-- 月別収支推移（全体タブ専用） -->
-      <div class="chart-section" id="section-monthly-trend" style="display:none">
-        <div class="chart-title">月別収支推移</div>
-        <div class="chart-wrap chart-monthly" id="wrap-monthly-trend"><canvas id="chart-monthly-trend"></canvas></div>
-      </div>
-
-      <!-- 回収率移動平均（全体タブ専用） -->
-      <div class="chart-section" id="section-moving-avg" style="display:none">
-        <div class="chart-title">回収率移動平均（直近30件）</div>
-        <div class="chart-wrap"><canvas id="chart-moving-avg"></canvas></div>
-      </div>
-
-      <!-- 場別ROI -->
-      <div class="chart-section" id="section-venue">
-        <div class="chart-title">場別ROI</div>
-        <div class="chart-wrap chart-tall" id="wrap-venue"><canvas id="chart-venue"></canvas></div>
-      </div>
-
-      <!-- レース番号別ROI -->
-      <div class="chart-section" id="section-race">
-        <div class="chart-title">レース番号別ROI</div>
-        <div class="chart-wrap" id="wrap-race"><canvas id="chart-race"></canvas></div>
-      </div>
-
-      <!-- 曜日別ROI -->
-      <div class="chart-section" id="section-day">
-        <div class="chart-title">曜日別ROI</div>
-        <div class="chart-wrap"><canvas id="chart-day"></canvas></div>
-      </div>
     </main>
   </div>
 
@@ -293,6 +399,16 @@
         <span class="unit">円</span>
       </div>
     </div>
+    <div class="form-group" id="predictor-row" style="display:none">
+      <label for="predictor-select">予想者</label>
+      <select id="predictor-select">
+        <option value="">選択してください</option>
+        <option value="大迫">大迫</option>
+        <option value="今伊">今伊</option>
+        <option value="今尾">今尾</option>
+        <option value="藤原">藤原</option>
+      </select>
+    </div>
     <div class="modal-actions">
       <button class="btn-primary" id="payout-save">確定</button>
       <button class="btn-secondary" id="payout-close">キャンセル</button>
@@ -312,7 +428,7 @@
       <label for="modal-buytype">種別</label>
       <select id="modal-buytype">
         <option value="ノリ">ノリ</option>
-        <option value="単舞">単舞</option>
+        <option value="単騎">単騎</option>
       </select>
     </div>
     <div class="form-group" id="modal-member-row" style="display:none">
@@ -367,7 +483,7 @@
 <div id="toast" class="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="config.js?v=20260420"></script>
-<script src="app.js?v=20260420"></script>
+<script src="config.js?v=20260424"></script>
+<script src="app.js?v=20260424"></script>
 </body>
 </html>

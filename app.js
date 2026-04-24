@@ -4,15 +4,15 @@
 const VENUES = {
   '競馬（中央）': ['札幌','函館','福島','新潟','中山','東京','中京','京都','阪神','小倉'],
   '競馬（地方）': ['帯広','門別','盛岡','水沢','浦和','船橋','大井','川崎','金沢','笠松','名古屋','園田','姫路','高知','佐賀'],
-  '競輪': ['函館','青森','いわき平','弥彦','前橋','取手','宇都宮','大宮','西武園','京王閣','立川','松戸','千葉','川崎','横浜','平塚','小田原','伊東','静岡','浜松','豊橋','岐阜','大垣','四日市','大津','奈良','向日町','和歌山','岸和田','玉野','広島','防府','高松','観音寺','小松島','高知','松山','久留米','小倉','直方','飯塚','武雄','佐世保','熊本','別府'],
-  'オートレース': ['船橋','川口','伊勢崎','浜松','山陽','飯塚','川越'],
+  '競輪': ['函館','青森','いわき平','弥彦','前橋','取手','宇都宮','大宮','西武園','京王閣','立川','松戸','千葉','川崎','平塚','小田原','伊東','静岡','浜松','豊橋','岐阜','大垣','四日市','富山','名古屋','松阪','福井','大津','奈良','向日町','和歌山','岸和田','玉野','広島','防府','高松','観音寺','小松島','高知','松山','久留米','小倉','飯塚','武雄','佐世保','熊本','別府'],
+  'オートレース': ['川口','伊勢崎','浜松','山陽','飯塚'],
   '競艇': ['桐生','戸田','江戸川','平和島','多摩川','浜名湖','蒲郡','常滑','津','三国','琵琶湖','住之江','尼崎','鳴門','丸亀','児島','宮島','徳山','下関','若松','芦屋','福岡','唐津','大村']
 };
 const SPORTS   = Object.keys(VENUES);
 const RACES    = Array.from({ length: 12 }, (_, i) => i + 1);
 const DAYS     = ['日','月','火','水','木','金','土'];
 const MEMBERS  = ['大迫', '今伊', '今尾', '藤原'];
-const BUY_TYPES = ['ノリ', '単舞'];
+const BUY_TYPES = ['ノリ', '単騎'];
 const GREEN    = '#3a9c2e';
 const RED      = '#e24b4a';
 const GREY     = '#aab2bb';
@@ -22,19 +22,41 @@ const STORAGE_KEY = 'racingTracker';
 let records       = [];
 let pendingSyncs  = [];
 let currentPeriod = 'month';
-let currentSport  = 'all';
-let selectedPeriodValue = null;   // YYYY-MM or YYYY
+let currentTopTab    = 'nori';       // 'nori' | 'individual' | 'overall'
+let currentMember    = '大迫';       // 個人タブ用
+let noriViewMember   = '大迫';       // ノリタブの視点メンバー
+let currentOverallSport = 'all';     // 全体タブの競技フィルター
+let selectedPeriodValue = null;
 let currentEditId   = null;
 let currentPayoutId = null;
-let currentMember   = '大迫';
 let charts = {};
 let toastTimer = null;
 
+// ── Step Form State ────────────────────────────────────────
+let currentStep = 1;
+let stepFormData = {
+  buyType: 'ノリ',
+  noriMembers: [],
+  member: null,
+  sport: null,
+  venue: null,
+  date: '',
+  race: null,
+  bet: null,
+  memo: '',
+  payout: null
+};
+
 // ── Storage ────────────────────────────────────────────────
+function normalizeBuyType(bt) {
+  if (bt === '単舞') return '単騎'; // 後方互換
+  return bt;
+}
+
 function loadStorage() {
   try {
     const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    records      = data.records      || [];
+    records      = (data.records || []).map(r => ({ ...r, buyType: normalizeBuyType(r.buyType) }));
     pendingSyncs = data.pendingSyncs || [];
   } catch { records = []; pendingSyncs = []; }
 }
@@ -56,15 +78,13 @@ function normalizeDate(dateStr) {
   if (!dateStr) return '';
   const s = String(dateStr);
   if (s.includes('T') || s.includes('Z')) {
-    // UTC ISO 文字列 → new Date() でパースしローカル時刻（JST）で取得
-    // 例: "2026-04-18T15:00:00.000Z" → JST 2026-04-19 00:00 → "2026-04-19"
     const dt = new Date(s);
     const y = dt.getFullYear();
     const m = String(dt.getMonth() + 1).padStart(2, '0');
     const d = String(dt.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
-  return s.slice(0, 10); // 既に 'YYYY-MM-DD' 形式
+  return s.slice(0, 10);
 }
 
 function formatDate(dateStr) {
@@ -72,26 +92,21 @@ function formatDate(dateStr) {
   const norm = normalizeDate(dateStr);
   const parts = norm.split('-');
   if (parts.length !== 3) return String(dateStr);
-  const result = parts[0] + '/' + parts[1] + '/' + parts[2];
-  console.log('日付変換前:', dateStr, '変換後:', result);
-  return result;
+  return parts[0] + '/' + parts[1] + '/' + parts[2];
 }
 
 function getDayOfWeek(dateStr) {
   if (!dateStr) return '';
   const norm = normalizeDate(dateStr);
   const [y, m, d] = norm.split('-').map(Number);
-  const result = DAYS[new Date(y, m - 1, d).getDay()];
-  console.log('曜日変換前:', dateStr, '変換後:', result);
-  return result;
+  return DAYS[new Date(y, m - 1, d).getDay()];
 }
 
 function getYearMonth(dateStr) {
   if (!dateStr) return '';
-  return normalizeDate(dateStr).slice(0, 7); // 'YYYY-MM'
+  return normalizeDate(dateStr).slice(0, 7);
 }
 
-// 後方互換エイリアス
 const fmtDate = formatDate;
 const dow = getDayOfWeek;
 
@@ -111,22 +126,10 @@ function gasUrl() { return window.CONFIG?.GAS_URL || ''; }
 
 async function gasFetch(opts = {}) {
   const url = gasUrl();
-  if (!url) {
-    console.log('[GAS] GAS_URL が未設定です');
-    return null;
-  }
-  console.log('[GAS] URL:', url);
-  if (opts.body) console.log('[GAS] 送信データ:', opts.body);
-
+  if (!url) { console.log('[GAS] GAS_URL が未設定です'); return null; }
   try {
-    const res = await fetch(url, {
-      mode: 'cors',
-      redirect: 'follow',
-      ...opts
-    });
-    console.log('[GAS] レスポンスステータス:', res.status, res.statusText);
+    const res = await fetch(url, { mode: 'cors', redirect: 'follow', ...opts });
     const data = await res.json();
-    console.log('[GAS] レスポンスデータ:', data);
     return data;
   } catch (err) {
     console.error('[GAS] fetchエラー:', err);
@@ -134,7 +137,6 @@ async function gasFetch(opts = {}) {
   }
 }
 
-// 同期ボタンのスピン制御
 function setSyncSpinning(spinning) {
   document.querySelectorAll('.btn-sync').forEach(btn => {
     btn.classList.toggle('spinning', spinning);
@@ -142,7 +144,6 @@ function setSyncSpinning(spinning) {
   });
 }
 
-// GAS から全件取得してローカルを上書き
 async function loadFromGAS(manual = false) {
   if (!navigator.onLine || !gasUrl()) {
     if (manual) showToast('同期に失敗しました', 'error');
@@ -151,23 +152,20 @@ async function loadFromGAS(manual = false) {
   setSyncSpinning(true);
   updateSyncIndicator('同期中…');
   try {
-    const res = await fetch(gasUrl(), {
-      method: 'GET',
-      mode: 'cors',
-      redirect: 'follow'
-    });
+    const res = await fetch(gasUrl(), { method: 'GET', mode: 'cors', redirect: 'follow' });
     const data = await res.json();
     if (data?.status === 'success' && Array.isArray(data.records)) {
-      // GAS が buyType/member を返さない場合（列未追加）、ローカルの値を保持してマージ
-      // また date フィールドが UTC ISO 文字列で来ても JST の 'YYYY-MM-DD' に正規化する
       const localById = new Map(records.map(r => [r.id, r]));
       records = data.records.map(gasRec => {
+        // 後方互換: 単舞→単騎
+        gasRec.buyType = normalizeBuyType(gasRec.buyType);
         const local = localById.get(gasRec.id);
         if (local) {
           if (gasRec.buyType == null && local.buyType != null) gasRec.buyType = local.buyType;
           if (gasRec.member  == null && local.member  != null) gasRec.member  = local.member;
+          if (gasRec.noriMembers == null && local.noriMembers != null) gasRec.noriMembers = local.noriMembers;
+          if (gasRec.predictor   == null && local.predictor   != null) gasRec.predictor   = local.predictor;
         }
-        // 日付を JST 'YYYY-MM-DD' に正規化（GAS が再デプロイ前でも対応）
         if (gasRec.date) gasRec.date = normalizeDate(gasRec.date);
         return gasRec;
       });
@@ -201,7 +199,6 @@ async function syncWithGAS() {
 
   const failed = [];
   for (const item of pendingSyncs) {
-    console.log('GAS再送信 (pending):', item.action, item.record?.id);
     try {
       const res = await fetch(gasUrl(), {
         method: 'POST',
@@ -211,37 +208,19 @@ async function syncWithGAS() {
         body: JSON.stringify(item)
       });
       const data = await res.json();
-      if (data?.status !== 'success') {
-        console.error('GAS再送信失敗:', data);
-        failed.push(item);
-      } else {
-        console.log('GAS再送信成功:', item.action);
-      }
-    } catch (err) {
-      console.error('GAS再送信エラー:', err);
-      failed.push(item);
-    }
+      if (data?.status !== 'success') failed.push(item);
+    } catch { failed.push(item); }
   }
   pendingSyncs = failed;
   saveStorage();
   updateSyncIndicator(failed.length ? `未同期 ${failed.length}件` : '');
 }
 
-// GAS に直接 POST する（失敗時は pendingSyncs に積む）
 async function gasPost(action, record) {
   const url = gasUrl();
   const payload = { action, record };
-  console.log('GAS送信:', url, payload);
 
-  if (!url) {
-    console.warn('GAS送信スキップ: GAS_URL が未設定');
-    pendingSyncs.push(payload);
-    saveStorage();
-    updateSyncIndicator(`未同期 ${pendingSyncs.length}件`);
-    return;
-  }
-  if (!navigator.onLine) {
-    console.warn('GAS送信スキップ: オフライン');
+  if (!url || !navigator.onLine) {
     pendingSyncs.push(payload);
     saveStorage();
     updateSyncIndicator(`未同期 ${pendingSyncs.length}件`);
@@ -256,19 +235,15 @@ async function gasPost(action, record) {
       headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(payload)
     });
-    console.log('[GAS] レスポンスステータス:', res.status, res.statusText);
     const data = await res.json();
-    console.log('[GAS] レスポンスデータ:', data);
     if (data?.status !== 'success') {
-      console.error('GAS送信失敗:', data);
       pendingSyncs.push(payload);
       saveStorage();
       updateSyncIndicator(`未同期 ${pendingSyncs.length}件`);
     } else {
       updateSyncIndicator('');
     }
-  } catch (err) {
-    console.error('GAS送信失敗:', err);
+  } catch {
     pendingSyncs.push(payload);
     saveStorage();
     updateSyncIndicator(`未同期 ${pendingSyncs.length}件`);
@@ -322,35 +297,8 @@ function filterByPeriod(recs) {
   }
 }
 
-function filterBySport(recs) {
-  if (currentSport === 'all') return recs;
-  return recs.filter(r => r.sport === currentSport);
-}
-
+// ノリ = buyType が 'ノリ' または未設定（旧データ互換）
 function getNoriOnly(recs) { return recs.filter(r => !r.buyType || r.buyType === 'ノリ'); }
-function getFiltered() { return filterBySport(filterByPeriod(getNoriOnly(getCompleted()))); }
-function getIndividualFiltered() {
-  // getCompleted() ではなく records 全件から検索（結果待ちも表示対象）
-  let recs = records.filter(r => r.buyType === '単舞' && r.member === currentMember);
-  if (currentMember === '今伊') recs = recs.filter(r => r.sport === '競艇');
-  const periodFiltered = filterByPeriod(recs);
-
-  // ── デバッグログ ──
-  console.log('[個人別] 全レコード数:', records.length);
-  console.log('[個人別] buyType=単舞 のレコード数:', records.filter(r => r.buyType === '単舞').length);
-  console.log('[個人別] 選択中のメンバー:', currentMember);
-  console.log('[個人別] メンバーフィルター後:', recs.length, '件  期間フィルター後:', periodFiltered.length, '件');
-  if (records.length > 0) {
-    console.log('[個人別] 先頭3件サンプル:', records.slice(0, 3).map(r => ({
-      buyType: JSON.stringify(r.buyType),
-      member:  JSON.stringify(r.member),
-      payout:  r.payout,
-      date:    r.date
-    })));
-  }
-
-  return periodFiltered;
-}
 
 // ── Badge ──────────────────────────────────────────────────
 function updateBadge(n) {
@@ -371,7 +319,7 @@ function switchTab(name) {
   if (name === 'history') renderHistoryList();
 }
 
-// ── Venue select helpers ────────────────────────────────────
+// ── Venue / Race select helpers ────────────────────────────
 function populateVenueSelect(selEl, sport, selected = '') {
   const venues = VENUES[sport] || [];
   selEl.innerHTML = `<option value="">選択してください</option>` +
@@ -382,6 +330,31 @@ function populateVenueSelect(selEl, sport, selected = '') {
 function populateRaceSelect(selEl, selected = '') {
   selEl.innerHTML = `<option value="">選択してください</option>` +
     RACES.map(r => `<option value="${r}" ${r == selected ? 'selected' : ''}>R${r}</option>`).join('');
+}
+
+// ── Render: Period selects ──────────────────────────────────
+function populatePeriodSelect() {
+  const sel = document.getElementById('period-select');
+  const extra = document.getElementById('period-extra');
+
+  if (currentPeriod === 'select-month') {
+    const months = [...new Set(records.map(r => getYearMonth(r.date)).filter(Boolean))].sort().reverse();
+    sel.innerHTML = months.map(m => {
+      const [y, mo] = m.split('-');
+      return `<option value="${m}" ${m === selectedPeriodValue ? 'selected' : ''}>${y}年${parseInt(mo)}月</option>`;
+    }).join('');
+    if (!selectedPeriodValue && months[0]) selectedPeriodValue = months[0];
+    if (selectedPeriodValue) sel.value = selectedPeriodValue;
+    extra.style.display = months.length ? '' : 'none';
+  } else if (currentPeriod === 'year') {
+    const years = [...new Set(records.map(r => getYearMonth(r.date)?.slice(0,4)).filter(Boolean))].sort().reverse();
+    sel.innerHTML = years.map(y => `<option value="${y}" ${y === selectedPeriodValue ? 'selected' : ''}>${y}年</option>`).join('');
+    if (!selectedPeriodValue && years[0]) selectedPeriodValue = years[0];
+    if (selectedPeriodValue) sel.value = selectedPeriodValue;
+    extra.style.display = years.length ? '' : 'none';
+  } else {
+    extra.style.display = 'none';
+  }
 }
 
 // ── Render: Pending list ───────────────────────────────────
@@ -422,65 +395,6 @@ function renderPendingList() {
   });
   container.querySelectorAll('.record-card').forEach(card => {
     card.addEventListener('click', () => openPayoutModal(card.dataset.id));
-  });
-}
-
-// ── Render: Period selects ──────────────────────────────────
-function populatePeriodSelect() {
-  const sel = document.getElementById('period-select');
-  const extra = document.getElementById('period-extra');
-
-  if (currentPeriod === 'select-month') {
-    const months = [...new Set(records.map(r => getYearMonth(r.date)).filter(Boolean))].sort().reverse();
-    sel.innerHTML = months.map(m => {
-      const [y, mo] = m.split('-');
-      return `<option value="${m}" ${m === selectedPeriodValue ? 'selected' : ''}>${y}年${parseInt(mo)}月</option>`;
-    }).join('');
-    if (!selectedPeriodValue && months[0]) selectedPeriodValue = months[0];
-    if (selectedPeriodValue) sel.value = selectedPeriodValue;
-    extra.style.display = months.length ? '' : 'none';
-  } else if (currentPeriod === 'year') {
-    const years = [...new Set(records.map(r => getYearMonth(r.date)?.slice(0,4)).filter(Boolean))].sort().reverse();
-    sel.innerHTML = years.map(y => `<option value="${y}" ${y === selectedPeriodValue ? 'selected' : ''}>${y}年</option>`).join('');
-    if (!selectedPeriodValue && years[0]) selectedPeriodValue = years[0];
-    if (selectedPeriodValue) sel.value = selectedPeriodValue;
-    extra.style.display = years.length ? '' : 'none';
-  } else {
-    extra.style.display = 'none';
-  }
-}
-
-// ── Render: Sport tabs ─────────────────────────────────────
-function renderSportTabs() {
-  const bar = document.getElementById('sport-tab-bar');
-  const tabs = [
-    { value: 'individual', label: '個人別' },
-    { value: 'all', label: '全体' },
-    ...SPORTS.map(s => ({ value: s, label: s }))
-  ];
-  bar.innerHTML = tabs.map(t =>
-    `<button class="sport-tab ${currentSport === t.value ? 'active' : ''}" data-sport="${esc(t.value)}">${esc(t.label)}</button>`
-  ).join('');
-  bar.querySelectorAll('.sport-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentSport = btn.dataset.sport;
-      renderSummary();
-    });
-  });
-}
-
-// ── Render: Member selector ────────────────────────────────
-function renderMemberSelector() {
-  const container = document.getElementById('member-selector');
-  if (!container) return;
-  container.innerHTML = MEMBERS.map(m =>
-    `<button class="member-btn ${m === currentMember ? 'active' : ''}" data-member="${esc(m)}">${esc(m)}</button>`
-  ).join('');
-  container.querySelectorAll('.member-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentMember = btn.dataset.member;
-      renderSummary();
-    });
   });
 }
 
@@ -675,75 +589,242 @@ function renderVBar(canvasId, labels, rois, topLabels) {
   });
 }
 
-// ── Render: Summary ─────────────────────────────────────────
+// ── Summary (top-level dispatcher) ─────────────────────────
 function renderSummary() {
   populatePeriodSelect();
-  renderSportTabs();
 
-  const isYear       = currentPeriod === 'year';
-  const isAll        = currentSport === 'all';
-  const isIndividual = currentSport === 'individual';
+  // トップタブ表示切替
+  document.getElementById('toptab-nori').style.display       = currentTopTab === 'nori'       ? '' : 'none';
+  document.getElementById('toptab-individual').style.display = currentTopTab === 'individual'  ? '' : 'none';
+  document.getElementById('toptab-overall').style.display    = currentTopTab === 'overall'     ? '' : 'none';
 
-  let filtered;
-  if (isIndividual) {
-    renderMemberSelector();
-    filtered = getIndividualFiltered();
-  } else {
-    filtered = getFiltered();
+  switch (currentTopTab) {
+    case 'nori':       renderNoriTab();       break;
+    case 'individual': renderIndividualTab(); break;
+    case 'overall':    renderOverallTab();    break;
   }
+}
 
-  const kpi = calcKPI(filtered);
+// ── ① ノリタブ ────────────────────────────────────────────
+function renderNoriViewMemberSelector() {
+  const container = document.getElementById('nori-view-member-selector');
+  if (!container) return;
+  container.innerHTML = MEMBERS.map(m =>
+    `<button class="member-btn ${m === noriViewMember ? 'active' : ''}" data-member="${esc(m)}">${esc(m)}</button>`
+  ).join('');
+  container.querySelectorAll('.member-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      noriViewMember = btn.dataset.member;
+      renderNoriTab();
+    });
+  });
+}
 
-  // KPI values
-  document.getElementById('kpi-bet').textContent    = fmtMoney(kpi.totalBet);
-  document.getElementById('kpi-payout').textContent = fmtMoney(kpi.totalPayout);
+function calcNoriKPI(recs, viewMember) {
+  let personalBet = 0;
+  let personalPayout = 0;
+  let count = 0;
 
-  const profitEl = document.getElementById('kpi-profit');
-  profitEl.textContent  = kpi.profit >= 0 ? '+' + fmtMoney(kpi.profit) : '−' + fmtMoney(kpi.profit);
-  profitEl.className    = 'kpi-value ' + (kpi.profit > 0 ? 'positive' : kpi.profit < 0 ? 'negative' : '');
+  recs.forEach(r => {
+    let members;
+    try {
+      members = r.noriMembers ? JSON.parse(r.noriMembers) : MEMBERS;
+    } catch { members = MEMBERS; }
+    if (!Array.isArray(members) || members.length === 0) members = MEMBERS;
 
-  const roiEl = document.getElementById('kpi-roi');
+    if (members.includes(viewMember)) {
+      const n = members.length;
+      personalBet    += (r.bet    || 0) / n;
+      personalPayout += (r.payout || 0) / n;
+      count++;
+    }
+  });
+
+  const profit = personalPayout - personalBet;
+  const roi    = personalBet > 0 ? personalPayout / personalBet * 100 : null;
+  return { personalBet, personalPayout, profit, roi, count };
+}
+
+function renderNoriTab() {
+  renderNoriViewMemberSelector();
+
+  const noriRecs = filterByPeriod(getNoriOnly(getCompleted()));
+  const kpi = calcNoriKPI(noriRecs, noriViewMember);
+
+  document.getElementById('nori-kpi-bet').textContent    = fmtMoney(Math.round(kpi.personalBet));
+  document.getElementById('nori-kpi-payout').textContent = fmtMoney(Math.round(kpi.personalPayout));
+
+  const p = Math.round(kpi.profit);
+  const profitEl = document.getElementById('nori-kpi-profit');
+  profitEl.textContent = p >= 0 ? '+' + fmtMoney(p) : '−' + fmtMoney(Math.abs(p));
+  profitEl.className   = 'kpi-value ' + (p > 0 ? 'positive' : p < 0 ? 'negative' : '');
+
+  const roiEl = document.getElementById('nori-kpi-roi');
   roiEl.textContent = kpi.roi != null ? kpi.roi.toFixed(1) + '%' : '—';
   roiEl.className   = 'kpi-value ' + (kpi.roi == null ? '' : kpi.roi >= 100 ? 'positive' : 'negative');
 
-  document.getElementById('kpi-hitrate').textContent = kpi.hitRate != null ? kpi.hitRate.toFixed(1) + '%' : '—';
+  document.getElementById('nori-kpi-count').textContent = kpi.count;
 
-  const isImai = isIndividual && currentMember === '今伊';
+  renderPredictorChart(noriRecs);
+}
 
-  // section visibility
-  document.getElementById('section-member-select').style.display       = isIndividual ? '' : 'none';
-  document.getElementById('section-individual-sport').style.display    = isIndividual && !isImai ? '' : 'none';
-  document.getElementById('section-individual-venue').style.display    = isImai ? '' : 'none';
-  document.getElementById('section-monthly').style.display             = !isAll && !isIndividual && isYear ? '' : 'none';
-  document.getElementById('section-sport-roi').style.display           = isAll ? '' : 'none';
-  document.getElementById('section-monthly-trend').style.display       = isAll ? '' : 'none';
-  document.getElementById('section-moving-avg').style.display          = isAll ? '' : 'none';
-  document.getElementById('section-venue').style.display               = !isAll && !isIndividual && !isYear ? '' : 'none';
-  document.getElementById('section-race').style.display                = !isAll && !isIndividual && !isYear ? '' : 'none';
-  document.getElementById('section-day').style.display                 = !isAll && !isIndividual && !isYear ? '' : 'none';
+function renderPredictorChart(noriRecs) {
+  const canvasId = 'chart-predictor';
+  const wrapId   = 'wrap-predictor';
 
-  if (isIndividual) {
-    if (isImai) {
-      renderIndividualVenueChart(filtered);
-    } else {
-      renderIndividualSportChart(filtered);
-    }
-    return;
+  const stats = {};
+  MEMBERS.forEach(m => { stats[m] = { bet: 0, payout: 0, count: 0 }; });
+
+  noriRecs.filter(r => r.predictor && stats[r.predictor]).forEach(r => {
+    stats[r.predictor].bet    += r.bet    || 0;
+    stats[r.predictor].payout += r.payout || 0;
+    stats[r.predictor].count++;
+  });
+
+  const entries = MEMBERS.map(m => ({
+    label: `${m}(${stats[m].count}件)`,
+    roi:   stats[m].bet > 0 ? stats[m].payout / stats[m].bet * 100 : null,
+    count: stats[m].count
+  })).filter(e => e.count > 0).sort((a, b) => (b.roi ?? -Infinity) - (a.roi ?? -Infinity));
+
+  renderHBar(canvasId, wrapId,
+    entries.map(e => e.label),
+    entries.map(e => e.roi),
+    null, 0
+  );
+}
+
+// ── ② 個人タブ ────────────────────────────────────────────
+function renderIndividualMemberSelector() {
+  const container = document.getElementById('individual-member-selector');
+  if (!container) return;
+  container.innerHTML = MEMBERS.map(m =>
+    `<button class="member-btn ${m === currentMember ? 'active' : ''}" data-member="${esc(m)}">${esc(m)}</button>`
+  ).join('');
+  container.querySelectorAll('.member-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentMember = btn.dataset.member;
+      renderIndividualTab();
+    });
+  });
+}
+
+function renderIndividualTab() {
+  renderIndividualMemberSelector();
+
+  const allRecs  = filterByPeriod(records.filter(r => (r.buyType === '単騎') && r.member === currentMember));
+  const completed = allRecs.filter(r => r.payout !== null);
+  const kpi = calcKPI(completed);
+
+  document.getElementById('ind-kpi-bet').textContent    = fmtMoney(kpi.totalBet);
+  document.getElementById('ind-kpi-payout').textContent = fmtMoney(kpi.totalPayout);
+
+  const profitEl = document.getElementById('ind-kpi-profit');
+  profitEl.textContent = kpi.profit >= 0 ? '+' + fmtMoney(kpi.profit) : '−' + fmtMoney(kpi.profit);
+  profitEl.className   = 'kpi-value ' + (kpi.profit > 0 ? 'positive' : kpi.profit < 0 ? 'negative' : '');
+
+  const roiEl = document.getElementById('ind-kpi-roi');
+  roiEl.textContent = kpi.roi != null ? kpi.roi.toFixed(1) + '%' : '—';
+  roiEl.className   = 'kpi-value ' + (kpi.roi == null ? '' : kpi.roi >= 100 ? 'positive' : 'negative');
+
+  document.getElementById('ind-kpi-hitrate').textContent = kpi.hitRate != null ? kpi.hitRate.toFixed(1) + '%' : '—';
+
+  const isImai = currentMember === '今伊';
+  document.getElementById('section-ind-sport').style.display = isImai ? 'none' : '';
+  document.getElementById('section-ind-venue').style.display = isImai ? '' : 'none';
+
+  if (isImai) {
+    renderIndividualVenueChart(completed, 'chart-ind-venue', 'wrap-ind-venue');
+  } else {
+    renderIndividualSportChart(completed, 'chart-ind-sport', 'wrap-ind-sport');
   }
 
-  if (isAll) {
+  renderMemberRankChart();
+}
+
+function renderMemberRankChart() {
+  const canvasId = 'chart-member-rank';
+  const wrapId   = 'wrap-member-rank';
+
+  const periodRecs = filterByPeriod(records);
+
+  const entries = MEMBERS.map(m => {
+    const recs   = periodRecs.filter(r => r.buyType === '単騎' && r.member === m && r.payout !== null);
+    const bet    = recs.reduce((s, r) => s + r.bet, 0);
+    const payout = recs.reduce((s, r) => s + r.payout, 0);
+    const roi    = bet > 0 ? payout / bet * 100 : null;
+    return { member: m, roi };
+  }).sort((a, b) => (b.roi ?? -Infinity) - (a.roi ?? -Infinity));
+
+  renderHBar(canvasId, wrapId,
+    entries.map(e => e.member),
+    entries.map(e => e.roi),
+    null, 0
+  );
+}
+
+// ── ③ 全体タブ ────────────────────────────────────────────
+function renderOverallSportTabs() {
+  const bar = document.getElementById('overall-sport-tab-bar');
+  const tabs = [{ value: 'all', label: '全' }, ...SPORTS.map(s => ({ value: s, label: s }))];
+  bar.innerHTML = tabs.map(t =>
+    `<button class="sport-tab ${currentOverallSport === t.value ? 'active' : ''}" data-sport="${esc(t.value)}">${esc(t.label)}</button>`
+  ).join('');
+  bar.querySelectorAll('.sport-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentOverallSport = btn.dataset.sport;
+      renderOverallTab();
+    });
+  });
+}
+
+function updateOvrKPI(kpi) {
+  document.getElementById('ovr-kpi-bet').textContent    = fmtMoney(kpi.totalBet);
+  document.getElementById('ovr-kpi-payout').textContent = fmtMoney(kpi.totalPayout);
+
+  const profitEl = document.getElementById('ovr-kpi-profit');
+  profitEl.textContent = kpi.profit >= 0 ? '+' + fmtMoney(kpi.profit) : '−' + fmtMoney(kpi.profit);
+  profitEl.className   = 'kpi-value ' + (kpi.profit > 0 ? 'positive' : kpi.profit < 0 ? 'negative' : '');
+
+  const roiEl = document.getElementById('ovr-kpi-roi');
+  roiEl.textContent = kpi.roi != null ? kpi.roi.toFixed(1) + '%' : '—';
+  roiEl.className   = 'kpi-value ' + (kpi.roi == null ? '' : kpi.roi >= 100 ? 'positive' : 'negative');
+
+  document.getElementById('ovr-kpi-hitrate').textContent = kpi.hitRate != null ? kpi.hitRate.toFixed(1) + '%' : '—';
+}
+
+function renderOverallTab() {
+  renderOverallSportTabs();
+
+  const isAll    = currentOverallSport === 'all';
+  const isYear   = currentPeriod === 'year';
+  const baseRecs = getNoriOnly(getCompleted());
+  const filtered = isAll
+    ? filterByPeriod(baseRecs)
+    : filterByPeriod(baseRecs.filter(r => r.sport === currentOverallSport));
+
+  updateOvrKPI(calcKPI(filtered));
+
+  document.getElementById('section-ovr-all').style.display    = isAll && !isYear ? '' : 'none';
+  document.getElementById('section-ovr-yearly').style.display = isAll && isYear  ? '' : 'none';
+  document.getElementById('section-ovr-sport').style.display  = !isAll           ? '' : 'none';
+
+  if (isAll && isYear) {
+    renderMonthlyChart(filtered, selectedPeriodValue);
+  } else if (isAll) {
     renderSportROIChart(filtered);
     renderMonthlyTrendChart(filtered);
     renderMovingAvgChart();
-    return;
+  } else {
+    renderOvrVenueChart(filtered);
+    renderOvrRaceChart(filtered);
+    renderOvrDayChart(filtered);
   }
+}
 
-  if (isYear) {
-    renderMonthlyChart(filtered, selectedPeriodValue);
-    return;
-  }
-
-  // 場別ROI（横棒・ROI高い順・3件未満グレー）
+function renderOvrVenueChart(filtered) {
+  const canvasId = 'chart-ovr-venue';
+  const wrapId   = 'wrap-ovr-venue';
   const venueStats = {};
   filtered.forEach(r => {
     if (!venueStats[r.venue]) venueStats[r.venue] = { bet: 0, payout: 0, count: 0 };
@@ -751,22 +832,22 @@ function renderSummary() {
     venueStats[r.venue].payout += r.payout;
     venueStats[r.venue].count++;
   });
-  const venueEntries = Object.entries(venueStats)
+  const entries = Object.entries(venueStats)
     .filter(([, s]) => s.bet > 0)
     .map(([venue, s]) => ({ venue, roi: s.payout / s.bet * 100, count: s.count }))
     .sort((a, b) => b.roi - a.roi);
 
-  const wrapH = Math.max(120, venueEntries.length * 32);
-  const wrapVenue = document.getElementById('wrap-venue');
-  if (wrapVenue) wrapVenue.style.height = wrapH + 'px';
+  const wrapEl = document.getElementById(wrapId);
+  if (wrapEl) wrapEl.style.height = Math.max(120, entries.length * 32) + 'px';
 
-  renderHBar('chart-venue', 'wrap-venue',
-    venueEntries.map(e => e.venue),
-    venueEntries.map(e => e.roi),
-    venueEntries.map(e => e.count), 3
+  renderHBar(canvasId, wrapId,
+    entries.map(e => e.venue),
+    entries.map(e => e.roi),
+    entries.map(e => e.count), 3
   );
+}
 
-  // レース番号別ROI（横棒）
+function renderOvrRaceChart(filtered) {
   const raceStats = {};
   RACES.forEach(r => { raceStats[`R${r}`] = { bet: 0, payout: 0 }; });
   filtered.filter(r => r.race >= 1 && r.race <= 12).forEach(r => {
@@ -775,9 +856,10 @@ function renderSummary() {
   });
   const raceKeys = RACES.map(r => `R${r}`);
   const raceRois = raceKeys.map(k => raceStats[k].bet > 0 ? raceStats[k].payout / raceStats[k].bet * 100 : null);
-  renderHBar('chart-race', 'wrap-race', raceKeys, raceRois, null, 0);
+  renderHBar('chart-ovr-race', 'wrap-ovr-race', raceKeys, raceRois, null, 0);
+}
 
-  // 曜日別ROI（縦棒）
+function renderOvrDayChart(filtered) {
   const dayStats = DAYS.map((_, i) => {
     const recs = filtered.filter(r => {
       if (!r.date) return false;
@@ -789,10 +871,10 @@ function renderSummary() {
     const pay  = recs.reduce((s, r) => s + r.payout, 0);
     return { roi: bet > 0 ? pay / bet * 100 : null };
   });
-  renderVBar('chart-day', DAYS, dayStats.map(d => d.roi), null);
+  renderVBar('chart-ovr-day', DAYS, dayStats.map(d => d.roi), null);
 }
 
-// ── ① 競技別ROI比較（全体タブ） ────────────────────────────
+// ── 競技別ROI比較（全体タブ） ─────────────────────────────
 function renderSportROIChart(filtered) {
   const canvasId = 'chart-sport-roi';
   const wrapId   = 'wrap-sport-roi';
@@ -852,14 +934,9 @@ function renderSportROIChart(filtered) {
 }
 
 // ── 個人別 競技別収支横棒グラフ ────────────────────────────
-function renderIndividualSportChart(filtered) {
-  const canvasId = 'chart-individual-sport';
-  const wrapId   = 'wrap-individual-sport';
-  // 払戻確定済みのみチャート対象（pending は payout=null のため除外）
-  const completed = filtered.filter(r => r.payout !== null);
-
+function renderIndividualSportChart(filtered, canvasId = 'chart-ind-sport', wrapId = 'wrap-ind-sport') {
   const sportData = SPORTS.map(sport => {
-    const recs   = completed.filter(r => r.sport === sport);
+    const recs   = filtered.filter(r => r.sport === sport);
     const bet    = recs.reduce((s, r) => s + r.bet, 0);
     const payout = recs.reduce((s, r) => s + r.payout, 0);
     return { sport, profit: payout - bet, bet };
@@ -914,15 +991,10 @@ function renderIndividualSportChart(filtered) {
   });
 }
 
-// ── 今伊個人別 場別ROI横棒グラフ ───────────────────────────
-function renderIndividualVenueChart(filtered) {
-  const canvasId = 'chart-individual-venue';
-  const wrapId   = 'wrap-individual-venue';
-  // 払戻確定済みのみROI計算対象
-  const completed = filtered.filter(r => r.payout !== null);
-
+// ── 今伊個人別 / 場別ROI横棒グラフ ────────────────────────
+function renderIndividualVenueChart(filtered, canvasId = 'chart-ind-venue', wrapId = 'wrap-ind-venue') {
   const venueStats = {};
-  completed.forEach(r => {
+  filtered.forEach(r => {
     if (!venueStats[r.venue]) venueStats[r.venue] = { bet: 0, payout: 0, count: 0 };
     venueStats[r.venue].bet    += r.bet;
     venueStats[r.venue].payout += r.payout;
@@ -943,7 +1015,7 @@ function renderIndividualVenueChart(filtered) {
   );
 }
 
-// ── ② 月別収支推移（全体タブ） ─────────────────────────────
+// ── 月別収支推移（全体タブ） ─────────────────────────────
 function renderMonthlyTrendChart(filtered) {
   const canvasId = 'chart-monthly-trend';
   const wrapId   = 'wrap-monthly-trend';
@@ -1005,23 +1077,18 @@ function renderMonthlyTrendChart(filtered) {
       },
       scales: {
         x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' } },
-        y: {
-          grid: { color: '#f1f5f9' },
-          ticks: { font: { size: 11 }, color: '#64748b' },
-          beginAtZero: true
-        }
+        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 }, color: '#64748b' }, beginAtZero: true }
       }
     }
   });
 }
 
-// ── ③ 回収率移動平均（全体タブ・直近30件） ──────────────────
+// ── 回収率移動平均（全体タブ・直近30件） ──────────────────
 function renderMovingAvgChart() {
   const canvasId = 'chart-moving-avg';
   const canvas   = document.getElementById(canvasId);
   if (!canvas) return;
 
-  // ノリのみ・日付/createdAt 昇順・直近30件
   const completed = [...getNoriOnly(getCompleted())]
     .sort((a, b) => a.date !== b.date ? (a.date < b.date ? -1 : 1) : a.createdAt - b.createdAt)
     .slice(-30);
@@ -1095,7 +1162,7 @@ function renderMovingAvgChart() {
   });
 }
 
-// ── Monthly chart ───────────────────────────────────────────
+// ── Monthly chart（年度別） ─────────────────────────────
 function renderMonthlyChart(recs, year) {
   const canvas = document.getElementById('chart-monthly');
   if (!canvas) return;
@@ -1207,6 +1274,9 @@ function renderHistoryList() {
     const diffHtml  = diff !== null
       ? `<div class="record-balance ${diff >= 0 ? 'positive' : 'negative'}">${diff >= 0 ? '+' : '−'}${fmtMoney(diff)}</div>`
       : '';
+    const buyLabel  = r.buyType === '単騎'
+      ? `<span class="record-sport" style="color:#7c3aed">単騎(${esc(r.member || '')})</span>`
+      : '';
     return `
       <div class="record-card" data-id="${r.id}">
         <div class="record-main">
@@ -1215,6 +1285,7 @@ function renderHistoryList() {
             <span class="record-sport">${esc(r.sport)}</span>
             <span class="record-venue">${esc(r.venue)}</span>
             <span class="badge-race">R${r.race}</span>
+            ${buyLabel}
           </div>
           <div class="record-amounts">
             <span class="record-bet">${fmtMoney(r.bet)}</span>
@@ -1242,6 +1313,8 @@ function openPayoutModal(id) {
     `<span>${esc(r.sport)}</span><span>${formatDate(r.date)}（${getDayOfWeek(r.date)}）</span>` +
     `<span>${esc(r.venue)}　R${r.race}</span><span>掛け金：${fmtMoney(r.bet)}</span>`;
   document.getElementById('payout-input').value = '';
+  document.getElementById('predictor-row').style.display = 'none';
+  document.getElementById('predictor-select').value = r.predictor || '';
   document.getElementById('payout-overlay').style.display = 'flex';
   setTimeout(() => document.getElementById('payout-input').focus(), 100);
 }
@@ -1257,7 +1330,15 @@ function savePayoutModal() {
   const payout = raw === '' ? null : parseInt(raw, 10);
   if (payout === null) { closePayoutModal(); return; }
   if (isNaN(payout) || payout < 0) { showToast('0以上の数値を入力してください', 'error'); return; }
-  updateRec(currentPayoutId, { payout });
+
+  const r = records.find(x => x.id === currentPayoutId);
+  const isNori = r && (!r.buyType || r.buyType === 'ノリ');
+  const predictor = (isNori && payout > 0) ? (document.getElementById('predictor-select').value || null) : null;
+
+  const updates = { payout };
+  if (predictor !== null) updates.predictor = predictor;
+
+  updateRec(currentPayoutId, updates);
   showToast(payout > 0 ? `的中！ ${fmtMoney(payout)} を確定しました` : 'ハズレを確定しました');
   renderPendingList();
   closePayoutModal();
@@ -1269,24 +1350,21 @@ function openEditModal(id) {
   if (!r) return;
   currentEditId = id;
 
-  // buyType / member
   const buyTypeSel = document.getElementById('modal-buytype');
   buyTypeSel.value = r.buyType || 'ノリ';
   const memberRow = document.getElementById('modal-member-row');
-  memberRow.style.display = buyTypeSel.value === '単舞' ? '' : 'none';
+  memberRow.style.display = buyTypeSel.value === '単騎' ? '' : 'none';
   const memberSel = document.getElementById('modal-member');
   memberSel.value = r.member || '';
   buyTypeSel.onchange = () => {
-    memberRow.style.display = buyTypeSel.value === '単舞' ? '' : 'none';
+    memberRow.style.display = buyTypeSel.value === '単騎' ? '' : 'none';
   };
 
-  // populate sport select
   const sportSel = document.getElementById('modal-sport');
   sportSel.innerHTML = SPORTS.map(s =>
     `<option value="${esc(s)}" ${s === r.sport ? 'selected' : ''}>${esc(s)}</option>`
   ).join('');
 
-  // populate venue based on current sport
   populateVenueSelect(document.getElementById('modal-venue'), r.sport, r.venue);
   populateRaceSelect(document.getElementById('modal-race'), r.race);
 
@@ -1296,8 +1374,6 @@ function openEditModal(id) {
   document.getElementById('modal-memo').value   = r.memo || '';
 
   document.getElementById('modal-overlay').style.display = 'flex';
-
-  // sport change → update venue options
   sportSel.onchange = () => populateVenueSelect(document.getElementById('modal-venue'), sportSel.value);
 }
 
@@ -1310,7 +1386,7 @@ function saveEditModal() {
   if (!currentEditId) return;
   const date    = document.getElementById('modal-date').value;
   const buyType = document.getElementById('modal-buytype').value;
-  const member  = buyType === '単舞' ? document.getElementById('modal-member').value : '';
+  const member  = buyType === '単騎' ? document.getElementById('modal-member').value : null;
   const sport   = document.getElementById('modal-sport').value;
   const venue   = document.getElementById('modal-venue').value;
   const race    = parseInt(document.getElementById('modal-race').value, 10);
@@ -1349,95 +1425,290 @@ function showToast(msg, type = 'success') {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
-// ── Register ───────────────────────────────────────────────
-function registerRecord() {
-  const date    = document.getElementById('input-date').value;
-  const buyType = document.getElementById('input-buytype').value;
-  const member  = buyType === '単舞' ? document.getElementById('input-member').value : '';
-  const sport   = document.getElementById('input-sport').value;
-  const venue   = document.getElementById('input-venue').value;
-  const race    = parseInt(document.getElementById('input-race').value, 10);
-  const bet     = parseInt(document.getElementById('input-bet').value, 10);
-  const payRaw  = document.getElementById('input-payout').value.trim();
-  const payout  = payRaw !== '' ? parseInt(payRaw, 10) : null;
-  const memo    = document.getElementById('input-memo').value.trim();
+// ── Step Form ─────────────────────────────────────────────
+function showStep(n) {
+  currentStep = n;
+  for (let i = 1; i <= 4; i++) {
+    const panel = document.getElementById(`step-panel-${i}`);
+    if (panel) panel.style.display = i === n ? '' : 'none';
+    const label = document.getElementById(`slabel-${i}`);
+    if (label) label.classList.toggle('active', i <= n);
+  }
+  const fill = document.getElementById('step-progress-fill');
+  if (fill) fill.style.width = (n / 4 * 100) + '%';
+  const backBtn = document.getElementById('step-back');
+  if (backBtn) backBtn.style.display = n > 1 ? '' : 'none';
+}
 
-  if (!date)           { showToast('日付を入力してください', 'error'); return; }
-  if (!sport)          { showToast('競技を選択してください', 'error'); return; }
-  if (!venue)          { showToast('場名を選択してください', 'error'); return; }
-  if (!race)           { showToast('レース番号を選択してください', 'error'); return; }
-  if (!bet || bet <= 0){ showToast('掛け金を入力してください', 'error'); return; }
-  if (buyType === '単舞' && !member) { showToast('メンバーを選択してください', 'error'); return; }
+function initStepForm() {
+  stepFormData = {
+    buyType: 'ノリ',
+    noriMembers: [...MEMBERS],
+    member: null,
+    sport: null,
+    venue: null,
+    date: todayStr(),
+    race: null,
+    bet: null,
+    memo: ''
+  };
 
-  addRecord({ date, buyType, member, sport, venue, race, bet, payout, memo });
+  // Reset buytype buttons
+  document.querySelectorAll('.buytype-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.buytype === 'ノリ');
+  });
+  document.getElementById('nori-member-section').style.display = '';
+  document.getElementById('tanki-member-section').style.display = 'none';
+
+  // Reset nori member buttons (all active)
+  document.querySelectorAll('#nori-member-grid .member-select-btn').forEach(btn => {
+    btn.classList.add('active');
+  });
+
+  // Reset tanki member buttons (none active)
+  document.querySelectorAll('#tanki-member-grid .member-select-btn').forEach(btn => {
+    btn.classList.remove('active');
+  });
+
+  // Populate race grid
+  const raceGrid = document.getElementById('step-race-grid');
+  if (raceGrid && !raceGrid.dataset.initialized) {
+    raceGrid.dataset.initialized = '1';
+    raceGrid.innerHTML = RACES.map(r =>
+      `<button class="race-btn" data-race="${r}">R${r}</button>`
+    ).join('');
+    raceGrid.querySelectorAll('.race-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        raceGrid.querySelectorAll('.race-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        stepFormData.race = parseInt(btn.dataset.race);
+      });
+    });
+  } else if (raceGrid) {
+    raceGrid.querySelectorAll('.race-btn').forEach(b => b.classList.remove('active'));
+  }
+  stepFormData.race = null;
+
+  // Populate sport grid
+  const sportGrid = document.getElementById('step-sport-grid');
+  if (sportGrid && !sportGrid.dataset.initialized) {
+    sportGrid.dataset.initialized = '1';
+    sportGrid.innerHTML = SPORTS.map(s =>
+      `<button class="sport-grid-btn" data-sport="${esc(s)}">${esc(s)}</button>`
+    ).join('');
+    sportGrid.querySelectorAll('.sport-grid-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sportGrid.querySelectorAll('.sport-grid-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        stepFormData.sport = btn.dataset.sport;
+        stepFormData.venue = null;
+
+        // Show venue section
+        const venueSection = document.getElementById('step-venue-section');
+        venueSection.style.display = '';
+        const venueGrid = document.getElementById('step-venue-grid');
+        venueGrid.innerHTML = (VENUES[btn.dataset.sport] || []).map(v =>
+          `<button class="venue-btn" data-venue="${esc(v)}">${esc(v)}</button>`
+        ).join('');
+        venueGrid.querySelectorAll('.venue-btn').forEach(vbtn => {
+          vbtn.addEventListener('click', () => {
+            venueGrid.querySelectorAll('.venue-btn').forEach(b => b.classList.remove('active'));
+            vbtn.classList.add('active');
+            stepFormData.venue = vbtn.dataset.venue;
+            document.getElementById('step2-next').disabled = false;
+          });
+        });
+        document.getElementById('step2-next').disabled = true;
+      });
+    });
+  } else if (sportGrid) {
+    sportGrid.querySelectorAll('.sport-grid-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('step-venue-section').style.display = 'none';
+    document.getElementById('step2-next').disabled = true;
+  }
+
+  // Reset date
+  const dateEl = document.getElementById('step-date');
+  if (dateEl) dateEl.value = todayStr();
+
+  // Reset step fields
+  const betEl  = document.getElementById('step-bet');
+  const memoEl = document.getElementById('step-memo');
+  if (betEl)  betEl.value  = '';
+  if (memoEl) memoEl.value = '';
+
+  showStep(1);
+}
+
+function registerFromStep() {
+  const d = stepFormData;
+  if (!d.date || !d.sport || !d.venue || !d.race || !d.bet || d.bet <= 0) {
+    showToast('必須項目が未入力です', 'error'); return;
+  }
+  if (d.buyType === '単騎' && !d.member) {
+    showToast('メンバーを選択してください', 'error'); return;
+  }
+  if (d.buyType === 'ノリ' && d.noriMembers.length === 0) {
+    showToast('参加メンバーを選択してください', 'error'); return;
+  }
+
+  const payRaw = document.getElementById('step-payout')?.value?.trim();
+  const payout = payRaw ? parseInt(payRaw, 10) : null;
+
+  addRecord({
+    date:        d.date,
+    buyType:     d.buyType,
+    noriMembers: d.buyType === 'ノリ' ? JSON.stringify(d.noriMembers) : null,
+    member:      d.buyType === '単騎' ? d.member : null,
+    sport:       d.sport,
+    venue:       d.venue,
+    race:        d.race,
+    bet:         d.bet,
+    payout:      payout !== null && !isNaN(payout) ? payout : null,
+    memo:        d.memo || ''
+  });
+
   showToast('登録しました');
-
-  // reset partial fields
-  document.getElementById('input-buytype').value   = 'ノリ';
-  document.getElementById('input-member-row').style.display = 'none';
-  document.getElementById('input-venue').innerHTML = '<option value="">競技を先に選択</option>';
-  document.getElementById('input-venue').disabled  = true;
-  document.getElementById('input-sport').value     = '';
-  document.getElementById('input-race').value      = '';
-  document.getElementById('input-bet').value       = '';
-  document.getElementById('input-payout').value    = '';
-  document.getElementById('input-memo').value      = '';
+  initStepForm();
 }
 
 // ── Init ─────────────────────────────────────────────────
 function init() {
   loadStorage();
 
-  // BuyType → member visibility
-  const buyTypeSel = document.getElementById('input-buytype');
-  buyTypeSel.addEventListener('change', () => {
-    document.getElementById('input-member-row').style.display = buyTypeSel.value === '単舞' ? '' : 'none';
+  // Step form initial setup
+  initStepForm();
+
+  // ── Buytype toggle ──
+  document.querySelectorAll('.buytype-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.buytype-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      stepFormData.buyType = btn.dataset.buytype;
+      const isNori = btn.dataset.buytype === 'ノリ';
+      document.getElementById('nori-member-section').style.display = isNori ? '' : 'none';
+      document.getElementById('tanki-member-section').style.display = isNori ? 'none' : '';
+    });
   });
 
-  // Sport selects
-  const sportSel = document.getElementById('input-sport');
-  SPORTS.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s; o.textContent = s;
-    sportSel.appendChild(o);
+  // ── ノリ member multi-select ──
+  document.querySelectorAll('#nori-member-grid .member-select-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const member = btn.dataset.member;
+      if (member === '全員') {
+        const anyActive = [...document.querySelectorAll('#nori-member-grid .member-select-btn:not(.wide-btn)')].some(b => b.classList.contains('active'));
+        const nowActive = !anyActive || stepFormData.noriMembers.length < MEMBERS.length;
+        // Toggle: if all active → deselect all; otherwise select all
+        const allActive = stepFormData.noriMembers.length === MEMBERS.length;
+        const next = !allActive;
+        document.querySelectorAll('#nori-member-grid .member-select-btn:not(.wide-btn)').forEach(b => b.classList.toggle('active', next));
+        btn.classList.toggle('active', next);
+        stepFormData.noriMembers = next ? [...MEMBERS] : [];
+      } else {
+        btn.classList.toggle('active');
+        const selected = [...document.querySelectorAll('#nori-member-grid .member-select-btn:not(.wide-btn).active')].map(b => b.dataset.member);
+        stepFormData.noriMembers = selected;
+        const allBtn = document.querySelector('#nori-member-grid .wide-btn');
+        if (allBtn) allBtn.classList.toggle('active', selected.length === MEMBERS.length);
+      }
+    });
   });
 
-  // Sport → Venue
-  sportSel.addEventListener('change', () => {
-    const venueSel = document.getElementById('input-venue');
-    if (sportSel.value) {
-      populateVenueSelect(venueSel, sportSel.value);
-      venueSel.disabled = false;
-    } else {
-      venueSel.innerHTML = '<option value="">競技を先に選択</option>';
-      venueSel.disabled = true;
+  // ── 単騎 member single-select ──
+  document.querySelectorAll('#tanki-member-grid .member-select-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#tanki-member-grid .member-select-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      stepFormData.member = btn.dataset.member;
+    });
+  });
+
+  // ── Step navigation ──
+  document.getElementById('step-back').addEventListener('click', () => {
+    if (currentStep > 1) showStep(currentStep - 1);
+  });
+
+  document.getElementById('step1-next').addEventListener('click', () => {
+    if (stepFormData.buyType === '単騎' && !stepFormData.member) {
+      showToast('メンバーを選択してください', 'error'); return;
     }
+    if (stepFormData.buyType === 'ノリ' && stepFormData.noriMembers.length === 0) {
+      showToast('参加メンバーを選択してください', 'error'); return;
+    }
+    showStep(2);
   });
 
-  // Race select
-  populateRaceSelect(document.getElementById('input-race'));
+  document.getElementById('step2-next').addEventListener('click', () => {
+    if (!stepFormData.sport || !stepFormData.venue) {
+      showToast('競技と場名を選択してください', 'error'); return;
+    }
+    showStep(3);
+  });
 
-  // Default date
-  document.getElementById('input-date').value = todayStr();
+  document.getElementById('step3-next').addEventListener('click', () => {
+    const date = document.getElementById('step-date').value;
+    const bet  = parseInt(document.getElementById('step-bet').value, 10);
+    const memo = document.getElementById('step-memo').value.trim();
 
-  // Badge
+    if (!date)          { showToast('日付を入力してください', 'error');     return; }
+    if (!stepFormData.race) { showToast('レース番号を選択してください', 'error'); return; }
+    if (!bet || bet <= 0) { showToast('掛け金を入力してください', 'error');  return; }
+
+    stepFormData.date = date;
+    stepFormData.bet  = bet;
+    stepFormData.memo = memo;
+
+    // Build confirm table
+    const buyTypeLabel = stepFormData.buyType === 'ノリ'
+      ? `ノリ（${stepFormData.noriMembers.join('・')}）`
+      : `単騎（${stepFormData.member}）`;
+    const rows = [
+      ['種別',       buyTypeLabel],
+      ['競技',       stepFormData.sport],
+      ['場名',       stepFormData.venue],
+      ['日付',       stepFormData.date],
+      ['レース番号', `R${stepFormData.race}`],
+      ['掛け金',     fmtMoney(stepFormData.bet)],
+      ['メモ',       stepFormData.memo || '—']
+    ];
+    const confirmTable = document.getElementById('confirm-table');
+    if (confirmTable) {
+      confirmTable.innerHTML = rows.map(([label, value]) =>
+        `<div class="confirm-row"><span class="confirm-label">${esc(label)}</span><span class="confirm-value">${esc(value)}</span></div>`
+      ).join('');
+    }
+    const payoutEl = document.getElementById('step-payout');
+    if (payoutEl) payoutEl.value = '';
+    showStep(4);
+  });
+
+  document.getElementById('step-modify').addEventListener('click', () => showStep(1));
+  document.getElementById('step-register').addEventListener('click', registerFromStep);
+
+  // ── Badge ──
   updateBadge(getPending().length);
 
-  // Tab nav
+  // ── Tab nav ──
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
-  // Register button
-  document.getElementById('btn-register').addEventListener('click', registerRecord);
-  document.getElementById('input-bet').addEventListener('keydown', e => { if (e.key === 'Enter') registerRecord(); });
+  // ── Top tabs ──
+  document.querySelectorAll('.top-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.top-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentTopTab = btn.dataset.toptab;
+      renderSummary();
+    });
+  });
 
-  // Period filter
+  // ── Period filter ──
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      currentPeriod      = btn.dataset.period;
+      currentPeriod       = btn.dataset.period;
       selectedPeriodValue = null;
       renderSummary();
     });
@@ -1447,15 +1718,22 @@ function init() {
     renderSummary();
   });
 
-  // Payout modal
+  // ── Payout modal ──
   document.getElementById('payout-save').addEventListener('click', savePayoutModal);
   document.getElementById('payout-close').addEventListener('click', closePayoutModal);
   document.getElementById('payout-input').addEventListener('keydown', e => { if (e.key === 'Enter') savePayoutModal(); });
+  // predictor 表示: ノリ && payout > 0
+  document.getElementById('payout-input').addEventListener('input', () => {
+    const r = records.find(x => x.id === currentPayoutId);
+    const isNori = r && (!r.buyType || r.buyType === 'ノリ');
+    const val = parseInt(document.getElementById('payout-input').value) || 0;
+    document.getElementById('predictor-row').style.display = isNori && val > 0 ? '' : 'none';
+  });
   document.getElementById('payout-overlay').addEventListener('click', e => {
     if (e.target === document.getElementById('payout-overlay')) closePayoutModal();
   });
 
-  // Edit modal
+  // ── Edit modal ──
   document.getElementById('modal-save').addEventListener('click', saveEditModal);
   document.getElementById('modal-delete').addEventListener('click', deleteEditRecord);
   document.getElementById('modal-close').addEventListener('click', closeEditModal);
@@ -1463,24 +1741,24 @@ function init() {
     if (e.target === document.getElementById('modal-overlay')) closeEditModal();
   });
 
-  // 同期ボタン
+  // ── 同期ボタン ──
   document.querySelectorAll('.btn-sync').forEach(btn => {
     btn.addEventListener('click', () => loadFromGAS(true));
   });
 
-  // Online/offline
+  // ── Online/offline ──
   window.addEventListener('online', async () => {
-    await syncWithGAS();   // 未送信分を先に flush
-    await loadFromGAS();   // 最新データを取得
+    await syncWithGAS();
+    await loadFromGAS();
   });
   window.addEventListener('offline', () => updateSyncIndicator('オフライン'));
 
-  // Service worker
+  // ── Service worker ──
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(console.error);
   }
 
-  // 起動時: pending flush → 全件取得
+  // ── 起動時: pending flush → 全件取得 ──
   if (navigator.onLine && gasUrl()) {
     syncWithGAS().then(() => loadFromGAS());
   }
